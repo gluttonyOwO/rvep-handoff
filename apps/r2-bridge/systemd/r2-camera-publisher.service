@@ -1,0 +1,24 @@
+[Unit]
+Description=RVEP R2 Camera Publisher (C270 → VAAPI H.264 → LiveKit)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=playrobot
+# Match the working systemd-run environment exactly (proven 2026-05-22).
+Environment=XDG_RUNTIME_DIR=/tmp/r2-camera-runtime
+Environment=HOME=/tmp
+Environment=LIBVA_DRIVER_NAME=i965
+Environment=LIBVA_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
+EnvironmentFile=/etc/rvep/r2-camera.env
+ExecStartPre=/bin/mkdir -p /tmp/r2-camera-runtime
+# Wrap in bash -c so systemd's environment propagation matches systemd-run.
+ExecStart=/bin/bash -c 'exec /opt/rvep/r2-bridge/r2_bridge/camera-publisher.sh'
+Restart=on-failure
+RestartSec=8
+KillMode=mixed
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target

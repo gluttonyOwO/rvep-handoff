@@ -1,0 +1,213 @@
+@import "tailwindcss";
+
+/* ----- Design tokens (Claude minimalism + Tesla cockpit) ----- */
+:root {
+  /* Surface */
+  --bg-0: #050505;
+  --bg-1: #0c0c0d;
+  --bg-2: #131316;
+
+  /* Foreground */
+  --fg-primary: #f5f5f7;
+  --fg-secondary: #a1a1aa;
+  --fg-muted: #71717a;
+
+  /* Strokes */
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.12);
+
+  /* Accents */
+  --accent-red: #e31937;     /* Tesla red — reserved for emergency */
+  --accent-red-dim: #b51228;
+  --accent-blue: #4d94ff;
+  --accent-green: #10b981;
+  --accent-amber: #f59e0b;
+
+  /* Radii */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+
+  /* Notch / safe area — iOS 11.2+, modern Android. Defaults to 0 on desktop. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+
+html, body {
+  background: var(--bg-0);
+  color: var(--fg-primary);
+  font-family: "Inter", "InterVariable", ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
+  /* Prevent rubber-band scroll on iOS Safari when in PWA cockpit mode. */
+  overscroll-behavior: none;
+}
+
+body {
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(77, 148, 255, 0.08), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 50% 100%, rgba(227, 25, 55, 0.05), transparent 60%);
+  background-attachment: fixed;
+  /* dvh = dynamic viewport height — fixes iOS Safari 100vh including URL bar. */
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Utility: pad to physical-edge respect (cockpit toolbar / fleet header). */
+.safe-pad {
+  padding-top: var(--safe-top);
+  padding-right: var(--safe-right);
+  padding-bottom: var(--safe-bottom);
+  padding-left: var(--safe-left);
+}
+.safe-pad-x {
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+.safe-pad-y {
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+}
+
+/* Viewport units that survive iOS URL-bar collapse + Android keyboard. */
+.h-dvh { height: 100dvh; }
+.min-h-dvh { min-height: 100dvh; }
+.w-dvw { width: 100dvw; }
+
+/* ── Cockpit mode visibility ──────────────────────────────────────────────
+ * Three modes (cockpit-store.mode):
+ *   immersive → only L1 elements (joystick, STOP, safety banner, video)
+ *   standard  → L1 + L2 (header, telemetry HUD, toolbar)
+ *   mission   → L1 + L2 + L3 (mission panel, dense telemetry, tile metadata)
+ * Elements opt in by adding data-cockpit-layer="L2" or "L3"; CSS hides them
+ * when the parent main carries data-cockpit-mode="immersive" (or "standard"
+ * for L3 elements). */
+main[data-cockpit-mode="immersive"] [data-cockpit-layer="L2"],
+main[data-cockpit-mode="immersive"] [data-cockpit-layer="L3"],
+main[data-cockpit-mode="standard"] [data-cockpit-layer="L3"] {
+  /* opacity transition keeps elements present-but-invisible so React state /
+     refs (video tile registration etc) survive mode switches with no remount. */
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 180ms ease, visibility 180ms ease;
+}
+main[data-cockpit-mode] [data-cockpit-layer] {
+  transition: opacity 180ms ease;
+}
+
+/* ── Brightness profile (outdoor / indoor / auto) ──────────────────────────
+ * Outdoor boosts contrast on text + surfaces (no GPU shader, pure CSS) to
+ * stay readable under direct sunlight. Indoor dims background gradients to
+ * cut eye strain at night. Auto = stock Phase-1 styling. */
+main[data-brightness="outdoor"] {
+  --fg-secondary: #ffffff;
+  --fg-muted: #d4d4d8;
+  --border-subtle: rgba(255, 255, 255, 0.18);
+  --border-strong: rgba(255, 255, 255, 0.32);
+}
+main[data-brightness="outdoor"] .surface,
+main[data-brightness="outdoor"] .surface-hover {
+  background: rgba(0, 0, 0, 0.72);
+}
+main[data-brightness="outdoor"] [data-cockpit-layer] {
+  font-weight: 600;
+}
+/* P0-6 fix (2026-05-20): scope brightness filter to chrome/HUD only, never the
+ * video layer. Previously this dimmed the entire <main> incl. <video> tracks,
+ * which made client demo footage look one grade worse. */
+main[data-brightness="indoor"] [data-cockpit-layer] {
+  filter: brightness(0.85);
+}
+
+/* Touch device hint — hide hover-only affordances on devices with NO hover
+ * capability AND coarse primary pointer (= phones / pure tablets). Hybrid
+ * devices (iPad+Magic Keyboard, Surface) report hover:hover and keep them
+ * visible, which is the intended behavior for keyboard-attached tablets. */
+@media (hover: none) and (pointer: coarse) {
+  .hover-only { display: none !important; }
+}
+
+/* Glass panel utility */
+.surface {
+  background: linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%);
+  border: 1px solid var(--border-subtle);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Subtle hover lift */
+.surface-hover {
+  transition: border-color 150ms ease, transform 150ms ease, background 150ms ease;
+}
+.surface-hover:hover {
+  border-color: var(--border-strong);
+  background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.03) 100%);
+}
+
+/* Hard-edge cockpit text */
+.cockpit {
+  font-feature-settings: "tnum" 1, "cv11" 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pulse dot for live status */
+@keyframes pulse-dot {
+  0%, 100% { box-shadow: 0 0 0 0 currentColor; opacity: 1; }
+  50%      { box-shadow: 0 0 0 6px transparent; opacity: 0.6; }
+}
+.pulse-dot {
+  animation: pulse-dot 1.6s ease-in-out infinite;
+}
+
+/* Scrollbar — subtle */
+*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 6px; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+/* ── P0-2: Global :focus-visible ring ─────────────────────────────────────
+ * Provides a consistent, high-contrast focus indicator for keyboard nav.
+ * STOP button gets a reinforced 3px red ring. */
+:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
+}
+
+/* Reinforce STOP button focus ring (emergency action — must be unmissable). */
+[data-testid="emergency-stop"]:focus-visible {
+  outline: 3px solid var(--accent-red);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 5px rgba(227, 25, 55, 0.4);
+}
+
+/* ── P0-5: prefers-reduced-motion ─────────────────────────────────────────
+ * Users with vestibular disorders: disable animations and transitions to
+ * prevent motion sickness when switching cockpit modes. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Cockpit mode transitions: collapse instantly instead of fading. */
+  main[data-cockpit-mode="immersive"] [data-cockpit-layer="L2"],
+  main[data-cockpit-mode="immersive"] [data-cockpit-layer="L3"],
+  main[data-cockpit-mode="standard"] [data-cockpit-layer="L3"] {
+    transition: none !important;
+  }
+  main[data-cockpit-mode] [data-cockpit-layer] {
+    transition: none !important;
+  }
+
+  /* Disable pulse-dot animation. */
+  .pulse-dot {
+    animation: none !important;
+  }
+}

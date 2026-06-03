@@ -1,0 +1,39 @@
+[Unit]
+Description=RVEP video publisher for camera %i
+Documentation=https://github.com/rvep/edge-publisher-go
+After=network.target
+
+# Publisher must be restarted if Edge Agent restarts (Edge Agent owns the socket).
+# PartOf= is intentionally omitted so systemd restarts the publisher independently.
+
+[Service]
+Type=simple
+User=mirdc
+Group=mirdc
+
+# %i is replaced by the camera ID (e.g. "front" or "rear")
+Environment=RVEP_CAMERA_PROFILE=/etc/rvep/cameras/%i.yaml
+Environment=RVEP_SOCKET_PATH=/var/run/rvep/vehicle-001/publisher-%i.sock
+
+ExecStart=/usr/local/bin/rvep-publisher
+
+# GStreamer and NVENC require the video group for /dev/video* access.
+SupplementaryGroups=video
+
+# Restart policy: on-failure with 5s delay.
+# Edge Agent applies its own exponential-backoff respawn on top of this.
+Restart=on-failure
+RestartSec=5s
+
+# Resource limits (AGX Orin Phase 1 budget per SLA).
+# Go runtime + GStreamer pipeline; NVENC encode is in kernel/HW.
+MemoryMax=512M
+CPUQuota=25%
+
+# Logging goes to journald (follow with: journalctl -u rvep-publisher@front -f)
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=rvep-publisher-%i
+
+[Install]
+WantedBy=multi-user.target

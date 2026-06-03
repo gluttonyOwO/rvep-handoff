@@ -1,0 +1,32 @@
+cameraId: rear
+sensorId: 1
+identity: edge-rear
+trackName: zedx-rear
+
+videoProfile:
+  width: 1920
+  height: 1080
+  framerate: 30
+  bitrateBps: 4000000
+  iframeIntervalFrames: 30
+
+# See zed-x-front.yaml for full notes on ISP autoFramerateRange + NVMM chain.
+gstreamerPipeline: |
+  nvarguscamerasrc sensor-id=1
+    exposuretimerange="100000 33000000"
+    aeantibanding=1 !
+    video/x-raw(memory:NVMM),framerate=30/1 !
+    nvvidconv !
+    video/x-raw(memory:NVMM),width=1920,height=1080,format=NV12 !
+    nvv4l2h264enc bitrate=4000000 iframeinterval=30
+                  preset-level=3 maxperf-enable=1
+                  EnableTwopassCBR=0 insert-sps-pps=true !
+    h264parse !
+    video/x-h264,stream-format=avc,alignment=au !
+    appsink name=sink sync=false drop=true max-buffers=4 emit-signals=true
+
+livekit:
+  url: ws://192.168.68.68:7880
+  apiKey: devkey
+  apiSecret: devsecret
+  room: ugv-vehicle-001

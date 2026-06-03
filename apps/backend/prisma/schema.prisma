@@ -1,0 +1,295 @@
+// This file is the Prisma schema for the Remote Vehicle Edge Control Platform.
+// Run `pnpm prisma:generate` after editing, and `pnpm prisma:migrate` to apply.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  ADMIN
+  OPERATOR
+  VIEWER
+}
+
+enum VehicleType {
+  QUADRUPED
+  WHEELED
+  WHEELED_QUADRUPED
+  RC_CAR
+  DRONE
+  CUSTOM
+}
+
+enum VehicleStatus {
+  ONLINE
+  OFFLINE
+  SAFE_MODE
+  DISCONNECTED
+  UNKNOWN
+}
+
+enum SessionPurpose {
+  CONTROL
+  MONITOR
+  DATASET
+  RAW
+}
+
+enum SessionStatus {
+  ACTIVE
+  CLOSED
+  FATAL
+}
+
+enum LeaseStatus {
+  ACTIVE
+  LOCKED
+  RECONNECTED_LOCKED
+  RELEASED
+  REVOKED
+}
+
+enum DatasetAssetKind {
+  RAW
+  ANNOTATED
+  EGRESS_PER_TRACK
+  EGRESS_COMPOSITE
+  METADATA
+  LOG
+}
+
+enum DatasetAssetSource {
+  ORIN_LOCAL
+  ORIN_RSYNC
+  LIVEKIT_EGRESS
+  MANUAL_UPLOAD
+}
+
+enum RetentionTier {
+  EPHEMERAL
+  ROLLING_30D
+  ROLLING_90D
+  PERMANENT
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+model User {
+  id                  String    @id @default(uuid())
+  email               String    @unique
+  passwordHash        String
+  role                Role
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  failedLoginCount    Int       @default(0)
+  lockedUntil         DateTime?
+  refreshTokenVersion Int       @default(0)
+
+  sessions           Session[]
+  controlLeases      ControlLease[]
+  vehiclePermissions VehiclePermission[] @relation("UserPermissions")
+  grantedPermissions VehiclePermission[] @relation("GrantedPermissions")
+}
+
+model Vehicle {
+  id              String        @id @default(uuid())
+  vehicleId       String        @unique
+  displayName     String
+  vehicleType     VehicleType
+  adapterType     String
+  platformId      String
+  cameraProfileId String
+  audioProfileId  String
+  capabilities    Json
+  status          VehicleStatus @default(OFFLINE)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  sessions             Session[]
+  controlLeases        ControlLease[]
+  vehiclePermissions   VehiclePermission[]
+  telemetryFrames      TelemetryFrame[]
+  networkLogs          NetworkLog[]
+  controlLogs          ControlLog[]
+  datasetAssets        DatasetAsset[]
+  audioDeviceSnapshots AudioDeviceSnapshot[]
+}
+
+model VehiclePermission {
+  id        String   @id @default(uuid())
+  userId    String
+  vehicleId String
+  role      Role
+  grantedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation("UserPermissions", fields: [userId], references: [id])
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id])
+  granter User?   @relation("GrantedPermissions", fields: [grantedBy], references: [id])
+
+  @@unique([userId, vehicleId])
+}
+
+model Session {
+  id              String         @id @default(uuid())
+  sessionId       String         @unique
+  vehicleId       String
+  userId          String
+  purpose         SessionPurpose
+  connectionEpoch BigInt         @default(1)
+  datasetVersion  String         @default("v1")
+  datasetPath     String?
+  status          SessionStatus
+  createdAt       DateTime       @default(now())
+  closedAt        DateTime?
+
+  vehicle              Vehicle               @relation(fields: [vehicleId], references: [id])
+  user                 User                  @relation(fields: [userId], references: [id])
+  controlLeases        ControlLease[]
+  networkLogs          NetworkLog[]
+  controlLogs          ControlLog[]
+  datasetAssets        DatasetAsset[]
+  audioDeviceSnapshots AudioDeviceSnapshot[]
+}
+
+model ControlLease {
+  id              String      @id @default(uuid())
+  vehicleId       String
+  operatorId      String
+  sessionId       String
+  connectionEpoch BigInt
+  status          LeaseStatus
+  expiresAt       DateTime
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  releasedAt      DateTime?
+  revokedAt       DateTime?
+
+  vehicle  Vehicle @relation(fields: [vehicleId], references: [id])
+  operator User    @relation(fields: [operatorId], references: [id])
+  session  Session @relation(fields: [sessionId], references: [id])
+
+  @@index([vehicleId, status])
+}
+
+model TelemetryFrame {
+  id              BigInt   @id @default(autoincrement())
+  vehicleId       String
+  sessionId       String
+  ts              DateTime
+  monotonicNs     BigInt?
+  connectionEpoch BigInt
+  gps             Json?
+  imu             Json?
+  battery         Json?
+  network         Json?
+  mode            String?
+  camera          Json?
+  audio           Json?
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [vehicleId])
+
+  @@index([vehicleId, ts])
+  @@index([sessionId, ts])
+}
+
+model EventLog {
+  id        BigInt   @id @default(autoincrement())
+  vehicleId String?
+  sessionId String?
+  userId    String?
+  eventName String
+  ts        DateTime @default(now())
+  payload   Json?
+
+  @@index([vehicleId, ts])
+  @@index([eventName, ts])
+}
+
+model NetworkLog {
+  id              BigInt   @id @default(autoincrement())
+  vehicleId       String
+  sessionId       String
+  connectionEpoch BigInt
+  ts              DateTime
+  state           String
+  rttMs           Float?
+  jitterMs        Float?
+  packetLoss      Float?
+  reconnectCount  Int?
+  reason          String?
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [vehicleId])
+  session Session @relation(fields: [sessionId], references: [id])
+}
+
+model ControlLog {
+  id              BigInt   @id @default(autoincrement())
+  vehicleId       String
+  operatorId      String
+  sessionId       String
+  connectionEpoch BigInt
+  seq             BigInt
+  ts              DateTime
+  commandType     String
+  axes            Json?
+  accepted        Boolean
+  rejectedReason  String?
+  adapterResult   Json?
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [vehicleId])
+  session Session @relation(fields: [sessionId], references: [id])
+
+  @@index([sessionId, ts])
+  @@index([vehicleId, ts])
+}
+
+/// Phase 1 schema pre-reserved for recording / sync (C11).
+/// Full field spec: openspec/data/recording-architecture.md
+model DatasetAsset {
+  id            String             @id @default(uuid())
+  vehicleId     String
+  sessionId     String
+  cameraId      String?
+  kind          DatasetAssetKind
+  source        DatasetAssetSource
+  path          String
+  sizeBytes     BigInt?
+  durationMs    BigInt?
+  sha256        String?
+  createdAt     DateTime           @default(now())
+  syncedAt      DateTime?
+  retentionTier RetentionTier      @default(ROLLING_30D)
+  metadata      Json?
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [vehicleId])
+  session Session @relation(fields: [sessionId], references: [id])
+}
+
+model AudioDeviceSnapshot {
+  id            BigInt   @id @default(autoincrement())
+  vehicleId     String
+  sessionId     String?
+  ts            DateTime
+  deviceId      String
+  displayName   String?
+  driverType    String?
+  sampleRate    Int?
+  inputChannels Int?
+  status        String
+
+  vehicle Vehicle  @relation(fields: [vehicleId], references: [vehicleId])
+  session Session? @relation(fields: [sessionId], references: [id])
+}

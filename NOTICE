@@ -1,0 +1,26 @@
+RVEP — Remote Vehicle Edge Control & Vision Data Platform
+Copyright 2026 Shawn Huang / 科福有限公司 (Kefu Technology Ltd.)
+Contact: shawn@kefu-tek.com
+
+This product is the Phase 1 Reference Implementation
+designed, architected, and authored by Shawn Huang.
+
+Phase 1 timeline:
+  - Initial commit:           2026-05-17
+  - Phase 1 baseline:         2026-05-18 (commit ed12cdb)
+  - Phase 1.5 UI completion:  2026-05-18
+  - Production handoff:       2026-06-04 (tag: v1.0.0-handoff)
+
+Per Apache License 2.0 §4(d), all Derivative Works and forks
+MUST retain this NOTICE file and the attribution to the original
+author in a publicly accessible location (NOTICE file, source
+documentation, or product about screen).
+
+Production deployment know-how (NVENC pipeline tuning, ZED-X
+sensor calibration, Setup SOPs, integration playbooks) is
+maintained separately by the original author as part of ongoing
+service engagement.
+
+For Phase 2+ extensions, production deployment consulting,
+performance tuning, or sensor integration support, please
+contact: shawn@kefu-tek.com

@@ -1,0 +1,19 @@
+[Unit]
+Description=RVEP r2-bridge (LiveKit DataChannel → /rvep/cmd_vel)
+After=network-online.target r2-twist-mux.service
+Wants=network-online.target r2-twist-mux.service
+
+[Service]
+Type=simple
+User=playrobot
+Group=playrobot
+EnvironmentFile=/etc/rvep/r2-bridge.env
+Environment=ROS_DOMAIN_ID=0
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash && exec python3 /opt/rvep/r2-bridge/r2_bridge/main.py'
+Restart=on-failure
+RestartSec=5
+# On stop, give bridge time to publish final zero-twist before kill.
+TimeoutStopSec=8
+
+[Install]
+WantedBy=multi-user.target

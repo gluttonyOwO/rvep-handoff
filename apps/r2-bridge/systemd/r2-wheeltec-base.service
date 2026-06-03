@@ -1,0 +1,26 @@
+[Unit]
+Description=Wheeltec R2 base controller + LiDAR + TF (ROS2 Humble launch)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=playrobot
+Group=playrobot
+Environment=ROS_DOMAIN_ID=0
+Environment=HOME=/home/playrobot
+# Wheeltec workspace install is on user's Desktop (colcon built-in paths).
+WorkingDirectory=/home/playrobot
+# Use a wrapper script in /opt/rvep — /tmp would not survive reboots.
+ExecStart=/opt/rvep/r2-bridge/r2_bridge/wheeltec-base.sh
+Restart=on-failure
+# Give udev time to resolve /dev/huanyu_* symlinks after USB enumeration.
+RestartSec=10
+# launch.py spawns many child nodes — TERM cascades via process group.
+KillMode=mixed
+TimeoutStopSec=15
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

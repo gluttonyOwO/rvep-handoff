@@ -1,0 +1,49 @@
+cameraId: front
+sensorId: 0
+identity: edge-front
+trackName: zedx-front
+
+videoProfile:
+  width: 1920
+  height: 1080
+  framerate: 30
+  bitrateBps: 4000000
+  iframeIntervalFrames: 30
+
+# GStreamer pipeline string.
+# Must end with: appsink name=sink
+#
+# IMPORTANT — ZED-X AR0234 ISP autoFramerateRange trap:
+#   /var/nvidia/nvcam/settings/zedx_ar0234.isp ships with
+#   `autoFramerateRange = {7.5, 120.0}`, which lets Argus AE drop fps to 7.5
+#   in order to lengthen exposure.  In bright environments this still triggers
+#   if AE prefers a long exposure (e.g. dark scene during boot), producing the
+#   classic 7 fps + motion-blurred / black image.  We pin `exposuretimerange`
+#   to ≤ 33 ms so AE cannot push framerate below 30 fps.
+#
+# Pipeline notes:
+#   - nvarguscamerasrc emits the sensor-native mode (1920×1200@60 for AR0234)
+#     in NVMM; nvvidconv (VIC) does NVMM→NVMM resize + colorspace to NV12.
+#   - preset-level=3 = LowLatencyHP (L4T R36.5 enum)
+#   - maxperf-enable=1 keeps NVENC clock pegged
+#   - insert-sps-pps=true: encoder inlines SPS/PPS before every IDR frame.
+#     Go publisher does NOT re-inject SPS/PPS (ADR-006 §SPS/PPS 注入時機).
+gstreamerPipeline: |
+  nvarguscamerasrc sensor-id=0
+    exposuretimerange="100000 33000000"
+    aeantibanding=1 !
+    video/x-raw(memory:NVMM),framerate=30/1 !
+    nvvidconv !
+    video/x-raw(memory:NVMM),width=1920,height=1080,format=NV12 !
+    nvv4l2h264enc bitrate=4000000 iframeinterval=30
+                  preset-level=3 maxperf-enable=1
+                  EnableTwopassCBR=0 insert-sps-pps=true !
+    h264parse !
+    video/x-h264,stream-format=avc,alignment=au !
+    appsink name=sink sync=false drop=true max-buffers=4 emit-signals=true
+
+livekit:
+  url: ws://192.168.68.68:7880
+  apiKey: devkey
+  apiSecret: devsecret
+  room: ugv-vehicle-001

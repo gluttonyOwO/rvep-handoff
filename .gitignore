@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build artifacts
+.next/
+dist/
+build/
+*.log
+*.tsbuildinfo
+
+# Environment files (NEVER commit secrets)
+.env
+.env.local
+.env.*.local
+
+# Native binaries (must rebuild on target hardware)
+apps/edge-publisher-go/rvep-publisher
+*.exe
+
+# Runtime / caches
+.turbo/
+.cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db

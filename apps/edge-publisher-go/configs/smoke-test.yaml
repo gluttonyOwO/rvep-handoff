@@ -1,0 +1,25 @@
+cameraId: smoke
+sensorId: 0
+identity: edge-smoke
+trackName: smoke-video
+videoProfile:
+  width: 640
+  height: 360
+  framerate: 30
+  bitrateBps: 800000
+  iframeIntervalFrames: 30
+# Smoke test: use videotestsrc + x264enc software encoder so we can verify the
+# AVCC→Annex B + Livekit publish path WITHOUT a real ZED-X camera connected.
+gstreamerPipeline: |
+  videotestsrc is-live=true pattern=smpte !
+    video/x-raw,width=640,height=360,framerate=30/1 !
+    timeoverlay halignment=left valignment=top font-desc="Sans 24" !
+    x264enc tune=zerolatency bitrate=800 key-int-max=30 speed-preset=ultrafast bframes=0 !
+    h264parse config-interval=1 !
+    video/x-h264,stream-format=avc,alignment=au !
+    appsink name=sink sync=false drop=true max-buffers=2 emit-signals=true
+livekit:
+  url: ws://192.168.68.68:7880
+  apiKey: devkey
+  apiSecret: devsecret
+  room: ugv-vehicle-001

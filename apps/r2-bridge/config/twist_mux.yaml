@@ -1,0 +1,28 @@
+# twist_mux priority configuration for R2.
+#
+# Highest-priority active input wins; lower priorities are ignored. timeout
+# is how long an input stays "active" since the last published msg — past
+# that the input is treated as dropped and lower priorities can take over.
+#
+# rvep_stop = emergency_stop from operator OR bridge watchdog. Highest, very
+# short timeout (1s) so a stale STOP doesn't lock the base out forever.
+
+twist_mux:
+  ros__parameters:
+    topics:
+      rvep_stop:
+        topic   : /rvep/emergency_stop
+        timeout : 1.0
+        priority: 100
+      rvep_operator:
+        topic   : /rvep/cmd_vel
+        timeout : 0.5
+        priority: 80
+      nav2:
+        topic   : /nav2/cmd_vel
+        timeout : 0.5
+        priority: 50
+      joy:
+        topic   : /joy_teleop/cmd_vel
+        timeout : 0.5
+        priority: 10
