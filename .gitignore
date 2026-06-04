@@ -31,3 +31,15 @@ apps/edge-publisher-go/rvep-publisher
 # OS
 .DS_Store
 Thumbs.db
+
+# === ⛔ 內部資料 — 絕對禁止 commit 到 public repo（2026-06-05 Shawn 拍板） ===
+# 這些是科福內部 know-how / 客戶簽核紀錄 / 踩坑經驗，
+# 一旦上 public 即無法收回。任何時候在這個目錄做 `git add .` 都要先檢查。
+openspec/
+memory/
+.claude/
+*黃祥*
+*-handoff-notes*
+phase-*-completion.md
+HANDOFF.md
+CLAUDE.md
