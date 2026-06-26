@@ -1,0 +1,77 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: rvep-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: rvep
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: rvep-livekit
+    restart: unless-stopped
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+    environment:
+      LIVEKIT_KEYS: "devkey: devsecret"
+      LIVEKIT_PORT: 7880
+      LIVEKIT_BIND_ADDRESSES: "0.0.0.0"
+      LIVEKIT_RTC_PORT: 7882
+      LIVEKIT_RTC_UDP_PORT: 7882
+      LIVEKIT_RTC_TCP_PORT: 7881
+      LIVEKIT_RTC_NODE_IP: "127.0.0.1"
+      LIVEKIT_LOG_LEVEL: info
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:7880"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  coturn:
+    image: instrumentisto/coturn:latest
+    container_name: rvep-coturn
+    restart: unless-stopped
+    ports:
+      - "3478:3478"
+      - "3478:3478/udp"
+      - "5349:5349"
+      - "5349:5349/udp"
+      - "49152-65535:49152-65535/udp"
+    command:
+      - -n
+      - --realm=rvep.dev
+      - --listening-port=3478
+      - --tls-listening-port=5349
+      - --min-port=49152
+      - --max-port=65535
+      - --fingerprint
+      - --lt-cred-mech
+      - --user=devuser:devpass
+      - --log-file=stdout
+
+  mqtt:
+    image: eclipse-mosquitto:latest
+    container_name: rvep-mqtt
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - mosquitto-data:/mosquitto/data
+
+volumes:
+  pgdata:
+  mosquitto-data:
