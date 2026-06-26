@@ -21,7 +21,7 @@ cp .env.example .env.local
 #   openssl rand -base64 32   → paste as JWT_REFRESH_KEY
 
 # 3. Start required services (run from repo root)
-docker compose -f docker-compose.dev.yml up -d postgres livekit coturn mqtt
+docker compose -f docker-compose.dev.yml up -d postgres livekit 
 
 # 4. Generate Prisma client
 pnpm prisma:generate
