@@ -24,23 +24,20 @@ const PUBLIC_PATHS = new Set([
 const INTERNAL_PREFIX = "/api/v1/internal/";
 
 const CORS_ALLOWED_ORIGIN = process.env.CORS_ALLOWED_ORIGIN ?? "http://localhost:3011";
-
 function applyCors(res: NextResponse, origin: string | null): NextResponse {
-  // Allow the configured web origin + localhost (any port) + RFC1918 private LAN
-  // ranges (so LAN devices like iPhone/iPad/partner laptops can demo).
-  const isLanOrigin = origin !== null && (
-    origin.startsWith("http://localhost") ||
-    origin.startsWith("http://127.") ||
-    /^https?:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/.test(origin) ||
-    /^https?:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/.test(origin) ||
-    /^https?:\/\/172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}(:\d+)?$/.test(origin)
-  );
-  const allow = origin && (origin === CORS_ALLOWED_ORIGIN || isLanOrigin)
-    ? origin
-    : CORS_ALLOWED_ORIGIN;
+  // 1. 如果有收到來源(origin)，我們在開發階段直接動態允許該來源
+  // 如果未來要上正式環境，再改回嚴格的特定網域
+  const allow = origin ? origin : CORS_ALLOWED_ORIGIN;
+
   res.headers.set("Access-Control-Allow-Origin", allow);
   res.headers.set("Access-Control-Allow-Credentials", "true");
-  res.headers.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
+  
+  // 2. 擴充允許的 Headers，防止瀏覽器因為隱藏的自訂 Header (如 X-Requested-With) 判定 CORS 失敗
+  res.headers.set(
+    "Access-Control-Allow-Headers", 
+    "Authorization, Content-Type, X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Date, X-Api-Version"
+  );
+  
   res.headers.set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
   res.headers.set("Vary", "Origin");
   return res;

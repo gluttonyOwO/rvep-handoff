@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
         durationMs: body.durationMs != null ? BigInt(body.durationMs) : null,
         sha256: body.sha256 ?? null,
         retentionTier: RetentionTier.ROLLING_30D,
-        metadata: body.metadata ?? undefined,
+        metadata: (body.metadata ?? undefined) as any,
       },
     });
 
