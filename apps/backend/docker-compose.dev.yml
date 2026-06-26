@@ -40,27 +40,7 @@ services:
       timeout: 5s
       retries: 5
 
-  coturn:
-    image: instrumentisto/coturn:latest
-    container_name: rvep-coturn
-    restart: unless-stopped
-    ports:
-      - "3478:3478"
-      - "3478:3478/udp"
-      - "5349:5349"
-      - "5349:5349/udp"
-      - "49152-65535:49152-65535/udp"
-    command:
-      - -n
-      - --realm=rvep.dev
-      - --listening-port=3478
-      - --tls-listening-port=5349
-      - --min-port=49152
-      - --max-port=65535
-      - --fingerprint
-      - --lt-cred-mech
-      - --user=devuser:devpass
-      - --log-file=stdout
+
 
   mqtt:
     image: eclipse-mosquitto:latest
