@@ -1,28 +1,61 @@
+# Dev-only compose. Do NOT use this file in production.
+# Required env vars (put in apps/backend/.env, which must be gitignored):
+#   POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
+#   LIVEKIT_API_KEY, LIVEKIT_API_SECRET
+# Optional:
+#   LIVEKIT_NODE_IP (defaults to 127.0.0.1; set to LAN IP if testing from phone)
+name: rvep-dev
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-security: &default-security
+  security_opt:
+    - no-new-privileges:true
+
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16.4-alpine
     container_name: rvep-postgres
     restart: unless-stopped
     ports:
-      - "5432:5432"
+      # Loopback-only: prevents the entire LAN / public internet from reaching
+      # the DB with the configured credentials. Critical hardening: a publicly
+      # exposed Postgres superuser can RCE via `COPY ... FROM PROGRAM`.
+      - "127.0.0.1:5432:5432"
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: rvep
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER must be set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-rvep}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+    <<: *default-security
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+    logging: *default-logging
+    networks: [backend]
 
   livekit:
-    image: livekit/livekit-server:latest
+    image: livekit/livekit-server:v1.7.2
     container_name: rvep-livekit
     restart: unless-stopped
     ports:
-      - "7880:7880"
+      # Signaling on loopback only; WebRTC media ports must remain reachable
+      # from the operator's browser, so 7881/tcp and 7882/udp stay open.
+      - "127.0.0.1:7880:7880"
       - "7881:7881"
       - "7882:7882/udp"
     environment:
@@ -39,19 +72,18 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-
-
-  mqtt:
-    image: eclipse-mosquitto:latest
-    container_name: rvep-mqtt
-    restart: unless-stopped
-    ports:
-      - "1883:1883"
-      - "9001:9001"
-    volumes:
-      - mosquitto-data:/mosquitto/data
+    <<: *default-security
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+    logging: *default-logging
+    networks: [backend]
 
 volumes:
   pgdata:
-  mosquitto-data:
+
+networks:
+  backend:
+    driver: bridge
