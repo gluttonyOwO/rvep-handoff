@@ -1,23 +1,12 @@
 #!/usr/bin/env bash
-# r2-camera-publisher — C270 → VAAPI H.264 → LiveKit room
+# r2-camera-publisher — C270 → CPU x264enc H.264 → LiveKit room
 #
-# Pipeline (proven 2026-05-22 after long debug):
-#   v4l2src → videoconvert → vaapih264enc (i965 driver, Apollo Lake EncSlice
-#     path, NOT EncSliceLP/VDEnc which requires HuC microcode authorization)
-#   → h264parse → fdsink fd=1
+# Pipeline (Updated for Jetson Thor - CPU Compatibility Mode):
+#   v4l2src → videoconvert → x264enc (Software) → h264parse → fdsink fd=1
 #   → socat stdin → UNIX-LISTEN socket
 #   → lk room join --publish=h264:///socket → LiveKit SFU
 #
-# Why this dance (Apollo Lake N3350 specific):
-# - iHD driver's VDEnc path needs HuC microcode authorization (kernel
-#   i915.enable_guc=2) which isn't enabled by default — see
-#   [[project-r2-vaapi-huc-blocker]] memory.
-# - i965-va-driver-shaders avoids VDEnc, uses stable EncSlice path.
-# - filesink → FIFO + lk reader fails caps negotiation (cat reader works,
-#   lk reader doesn't, root cause not isolated). Workaround: fdsink |
-#   socat → UNIX socket → lk publish.
-#
-# Reads config from /etc/rvep/r2-camera.env.
+# Reads config from /etc/rvep/r2-bridge.env.
 
 set -e
 
@@ -30,23 +19,18 @@ set -e
 : "${BITRATE:=1500}"
 : "${DEVICE:=/dev/video0}"
 
-# VAAPI driver lock — see project memory for why iHD doesn't work.
-export LIBVA_DRIVER_NAME=i965
-export LIBVA_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
-
 SOCK=/tmp/r2cam.sock
 rm -f "$SOCK"
 
 trap 'jobs -p | xargs -r kill 2>/dev/null; rm -f "$SOCK"; exit' EXIT INT TERM
 
-# Pipeline 1: GStreamer encodes to stdout, socat serves UNIX socket
-# IMPORTANT: bare pipeline, no explicit downstream caps. Auto-negotiation
-# is the ONLY mode that works on Apollo Lake + i965 + systemd context.
+# Pipeline 1: GStreamer 透過 CPU 進行 H.264 軟編碼，並輸出至 UNIX socket
+# 使用 I420 格式對接 x264enc，開啟非常快速與零延遲模式
 ( gst-launch-1.0 -q \
       v4l2src device="$DEVICE" \
     ! videoconvert \
     ! 'video/x-raw, format=I420' \
-    ! x264enc speed-preset=veryfast tune=zerolatency bitrate=$BITRATE \
+    ! x264enc speed-preset=veryfast tune=zerolatency bitrate="$BITRATE" \
     ! h264parse \
     ! fdsink fd=1 \
   | socat - UNIX-LISTEN:"$SOCK",fork,reuseaddr ) &
@@ -63,8 +47,8 @@ if [ ! -S "$SOCK" ]; then
   exit 2
 fi
 
-# Pipeline 2: lk reads from UNIX socket, publishes to LiveKit room
-exec lk room join \
+# Pipeline 2: lk (v2.7.0) reads from UNIX socket, publishes to LiveKit room
+exec /usr/local/bin/lk room join \
   --url "$LIVEKIT_URL" \
   --api-key "$LIVEKIT_API_KEY" \
   --api-secret "$LIVEKIT_API_SECRET" \
