@@ -29,9 +29,10 @@ trap 'jobs -p | xargs -r kill 2>/dev/null; rm -f "$SOCK"; exit' EXIT INT TERM
 ( gst-launch-1.0 -q \
       v4l2src device="$DEVICE" \
     ! videoconvert \
-    ! 'video/x-raw, format=I420' \
-    ! x264enc speed-preset=veryfast tune=zerolatency bitrate="$BITRATE" \
+    ! 'video/x-raw, format=I420, framerate=30/1' \
+    ! x264enc speed-preset=veryfast tune=zerolatency bitrate="$BITRATE" key-int-max=30 byte-stream=true \
     ! h264parse \
+    ! 'video/x-h264, stream-format=byte-stream, alignment=au' \
     ! fdsink fd=1 \
   | socat - UNIX-LISTEN:"$SOCK",fork,reuseaddr ) &
 PIPE_PID=$!
