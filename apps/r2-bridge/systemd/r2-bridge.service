@@ -9,7 +9,15 @@ User=mic-742
 Group=mic-742
 EnvironmentFile=/etc/rvep/r2-bridge.env
 Environment=ROS_DOMAIN_ID=0
-ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && exec python3 /opt/rvep/r2-bridge/r2_bridge/main.py'
+# 🌟 核心優化：手動加上 PYTHONPATH，確保 Python 找得到 r2_bridge 的 parent package
+Environment=PYTHONPATH=/opt/rvep/r2-bridge
+
+# 修正工作目錄
+WorkingDirectory=/opt/rvep/r2-bridge
+
+# 🌟 核心修正：將 python3 換成 -m 模組化啟動
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && exec python3 -m r2_bridge.main'
+
 Restart=on-failure
 RestartSec=5
 # On stop, give bridge time to publish final zero-twist before kill.
