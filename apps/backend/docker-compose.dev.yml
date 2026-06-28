@@ -1,9 +1,7 @@
-# Dev-only compose. Do NOT use this file in production.
+# Dev-only compose. Adjusted for GCP Public RTC Routing Deployment.
 # Required env vars (put in apps/backend/.env, which must be gitignored):
 #   POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
 #   LIVEKIT_API_KEY, LIVEKIT_API_SECRET
-# Optional:
-#   LIVEKIT_NODE_IP (defaults to 127.0.0.1; set to LAN IP if testing from phone)
 name: rvep-dev
 
 x-logging: &default-logging
@@ -53,19 +51,21 @@ services:
     container_name: rvep-livekit
     restart: unless-stopped
     ports:
-      # Signaling on loopback only; WebRTC media ports must remain reachable
-      # from the operator's browser, so 7881/tcp and 7882/udp stay open.
+      # Signaling (WebSocket) 保持公網開放
       - "0.0.0.0:7880:7880"
-      - "7881:7881"
-      - "7882:7882/udp"
+      # 🌟 核心修正 1：將原本的 7882/udp 換成對齊 GCP 防火牆的 50000-60000 埠段
+      - "50000-60000:50000-60000/udp"
     environment:
       LIVEKIT_KEYS: "devkey: devsecret"
       LIVEKIT_PORT: 7880
       LIVEKIT_BIND_ADDRESSES: "0.0.0.0"
-      LIVEKIT_RTC_PORT: 7882
-      LIVEKIT_RTC_UDP_PORT: 7882
-      LIVEKIT_RTC_TCP_PORT: 7881
-      LIVEKIT_RTC_NODE_IP: "127.0.0.1"
+      
+      # 🌟 核心修正 2：強制引導 LiveKit 分配 50000-60000 作為 WebRTC RTC 埠段
+      LIVEKIT_RTC_PORT_RANGE_START: 50000
+      LIVEKIT_RTC_PORT_RANGE_END: 60000
+      
+      # 🌟 核心修正 3：解開 127.0.0.1 鎖定！告訴小車與操作端網頁你的 GCP 公網 IP
+      LIVEKIT_RTC_NODE_IP: "35.206.221.67"
       LIVEKIT_LOG_LEVEL: info
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:7880"]
