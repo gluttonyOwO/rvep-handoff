@@ -40,7 +40,7 @@ pip install --user --break-system-packages livekit==1.1.8
 rsync -av apps/r2-bridge/ r2w:/opt/rvep/r2-bridge/
 
 # 3. Write env file (token minted by backend or dev tool)
-sudo install -m 640 -o root -g playrobot /dev/null /etc/rvep/r2-bridge.env
+sudo install -m 640 -o root -g mic-742 /dev/null /etc/rvep/r2-bridge.env
 sudo tee /etc/rvep/r2-bridge.env <<EOF
 LIVEKIT_URL=ws://192.168.68.68:7880
 LIVEKIT_TOKEN=<paste JWT here>
