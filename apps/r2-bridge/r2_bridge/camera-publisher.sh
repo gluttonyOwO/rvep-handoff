@@ -47,7 +47,7 @@ if [ ! -S "$SOCK" ]; then
   echo "ERROR: socket $SOCK never appeared" >&2
   exit 2
 fi
-
+unset LIVEKIT_TOKEN
 # Pipeline 2: lk (v2.7.0) reads from UNIX socket, publishes to LiveKit room
 exec /usr/local/bin/lk room join \
   --url "$LIVEKIT_URL" \
