@@ -5,8 +5,8 @@ Wants=network-online.target r2-wheeltec-base.service
 
 [Service]
 Type=simple
-User=playrobot
-Group=playrobot
+User=mic-742
+Group=mic-742
 Environment=ROS_DOMAIN_ID=0
 ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && exec ros2 run twist_mux twist_mux --ros-args --params-file /opt/rvep/r2-bridge/config/twist_mux.yaml -r cmd_vel_out:=/cmd_vel'
 Restart=on-failure

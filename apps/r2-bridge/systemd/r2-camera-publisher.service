@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=playrobot
+User=mic-742
 # Match the working systemd-run environment exactly (proven 2026-05-22).
 Environment=XDG_RUNTIME_DIR=/tmp/r2-camera-runtime
 Environment=HOME=/tmp
