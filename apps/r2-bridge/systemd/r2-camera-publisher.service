@@ -14,7 +14,7 @@ Environment=LIBVA_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
 EnvironmentFile=/etc/rvep/r2-camera.env
 ExecStartPre=/bin/mkdir -p /tmp/r2-camera-runtime
 # Wrap in bash -c so systemd's environment propagation matches systemd-run.
-ExecStart=/bin/bash -c 'exec /opt/rvep/r2-bridge/r2_bridge/camera-publisher.sh'
+ExecStart=/bin/bash -c 'exec /opt/rvep/r2-bridge/camera-publisher.sh'
 Restart=on-failure
 RestartSec=8
 KillMode=mixed

@@ -12,7 +12,7 @@ Environment=HOME=/home/mic-742
 # Wheeltec workspace install is on user's Desktop (colcon built-in paths).
 WorkingDirectory=/home/mic-742
 # Use a wrapper script in /opt/rvep — /tmp would not survive reboots.
-ExecStart=/opt/rvep/r2-bridge/r2_bridge/wheeltec-base.sh
+ExecStart=/opt/rvep/r2_bridge/wheeltec-base.sh
 Restart=on-failure
 # Give udev time to resolve /dev/huanyu_* symlinks after USB enumeration.
 RestartSec=10
