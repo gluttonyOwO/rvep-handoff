@@ -1,19 +1,22 @@
 [Unit]
-Description=RVEP R2 Camera Publisher (C270 → VAAPI H.264 → LiveKit)
+Description=RVEP R2 Camera Publisher (C270 → x264enc H.264 → LiveKit)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
 User=mic-742
-# Match the working systemd-run environment exactly (proven 2026-05-22).
+# 配合 Jetson 環境調整 Runtime
 Environment=XDG_RUNTIME_DIR=/tmp/r2-camera-runtime
 Environment=HOME=/tmp
-Environment=LIBVA_DRIVER_NAME=i965
-Environment=LIBVA_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
-EnvironmentFile=/etc/rvep/r2-camera.env
-ExecStartPre=/bin/mkdir -p /tmp/r2-camera-runtime
-# Wrap in bash -c so systemd's environment propagation matches systemd-run.
+
+# 修正 1：精準指向我們融入後的共用環境變數檔，且不加減號，確保強制讀取檢查
+EnvironmentFile=/etc/rvep/r2-bridge.env
+
+# 修正 2：修正為 Jetson 實際的 /usr/bin/mkdir 路徑
+ExecStartPre=/usr/bin/mkdir -p /tmp/r2-camera-runtime
+
+# 保持原有的 bash 封裝以確保環境變數正確傳遞
 ExecStart=/bin/bash -c 'exec /opt/rvep/r2-bridge/r2_bridge/camera-publisher.sh'
 Restart=on-failure
 RestartSec=8
