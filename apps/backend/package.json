@@ -29,7 +29,7 @@
     "@prisma/client": "^6.0.0",
     "bcryptjs": "^2.4.3",
     "jose": "^5.9.0",
-    "livekit-server-sdk": "^2.8.0",
+    "livekit-server-sdk": "2.7.0",
     "mqtt": "^5.10.0",
     "next": "^15.0.0",
     "react": "^18.3.0",
