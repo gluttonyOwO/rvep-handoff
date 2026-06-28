@@ -38,6 +38,7 @@ pip install --user --break-system-packages livekit==1.1.8
 
 # 2. Rsync app to R2
 sudo cp -r ./apps/r2-bridge/ /opt/rvep/
+sudo chmod +x /opt/rvep/r2-bridge/r2_bridge/camera-publisher.sh
 
 # 3. Write env file (token minted by backend or dev tool)
 sudo install -m 640 -o root -g mic-742 /dev/null /etc/rvep/r2-bridge.env
@@ -54,10 +55,12 @@ ROOM=ugv-vehicle-001
 EOF
 
 # 4. Install systemd units
+
 sudo cp apps/r2-bridge/systemd/r2-twist-mux.service /etc/systemd/system/
+sudo cp apps/r2-bridge/systemd/r2-camera-piblisher.service /etc/systemd/system/
 sudo cp apps/r2-bridge/systemd/r2-bridge.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now r2-twist-mux r2-bridge
+sudo systemctl enable --now r2-twist-mux r2-bridge r2-camera-piblisher
 
 # 5. Verify
 sudo journalctl -u r2-bridge -f
