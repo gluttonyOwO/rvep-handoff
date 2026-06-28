@@ -70,7 +70,7 @@ From the dev machine:
 cd apps/backend
 node -e "
 const { AccessToken } = require('livekit-server-sdk');
-const t = new AccessToken('devkey', 'devkeysecretdevkeysecretdevkeysecret', {
+const t = new AccessToken('devkey', 'devsecret', {
   identity: 'r2-001-bridge',
   ttl: 86400 * 7,
 });
