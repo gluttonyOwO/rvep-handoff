@@ -20,7 +20,7 @@ Joystick ──► ControlChannel ─►  livekit DataChannel
                                        │
                                        ▼
                                   twist_mux
-                                  (apt ros-humble-twist-mux)
+                                  (apt ros-jazzy-twist-mux)
                                        │
                                     /cmd_vel
                                        │
@@ -33,7 +33,7 @@ Joystick ──► ControlChannel ─►  livekit DataChannel
 
 ```bash
 # 1. On R2: install runtime deps
-sudo apt install ros-humble-twist-mux
+sudo apt install ros-jazzy-twist-mux
 pip install --user --break-system-packages livekit==1.1.8
 
 # 2. Rsync app to R2

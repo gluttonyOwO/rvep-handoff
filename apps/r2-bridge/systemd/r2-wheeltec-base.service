@@ -1,5 +1,5 @@
 [Unit]
-Description=Wheeltec R2 base controller + LiDAR + TF (ROS2 Humble launch)
+Description=Wheeltec R2 base controller + LiDAR + TF (ROS2 jazzy launch)
 After=network-online.target
 Wants=network-online.target
 

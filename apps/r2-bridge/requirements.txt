@@ -1,5 +1,5 @@
 # r2-bridge runtime deps. Install with:
 #   pip install --user --break-system-packages -r requirements.txt
 #
-# rclpy is provided by ROS2 Humble (sourced from /opt/ros/humble), NOT pip.
+# rclpy is provided by ROS2 jazzy (sourced from /opt/ros/jazzy), NOT pip.
 livekit==1.1.8

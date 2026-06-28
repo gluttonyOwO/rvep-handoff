@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Wheeltec R2 base controller launcher — driven by systemd r2-wheeltec-base.service.
-# Sources both ROS2 humble runtime + the customer-built wheeltec workspace,
+# Sources both ROS2 jazzy runtime + the customer-built wheeltec workspace,
 # then exec's the launch.py that brings up the motor controller + LiDAR + TF tree.
 #
 # Why a wrapper instead of inlining in ExecStart:
@@ -12,8 +12,8 @@
 
 set -e
 
-# ROS2 humble core
-source /opt/ros/humble/setup.bash
+# ROS2 jazzy core
+source /opt/ros/jazzy/setup.bash
 
 # Wheeltec-built workspace (huanyu_robot_start + sllidar_ros2 + huanyubot_description ...)
 source /home/playrobot/Desktop/robot_ws/robot_ws/install/setup.bash

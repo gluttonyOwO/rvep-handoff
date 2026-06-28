@@ -8,7 +8,7 @@ Type=simple
 User=playrobot
 Group=playrobot
 Environment=ROS_DOMAIN_ID=0
-ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash && exec ros2 run twist_mux twist_mux --ros-args --params-file /opt/rvep/r2-bridge/config/twist_mux.yaml -r cmd_vel_out:=/cmd_vel'
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && exec ros2 run twist_mux twist_mux --ros-args --params-file /opt/rvep/r2-bridge/config/twist_mux.yaml -r cmd_vel_out:=/cmd_vel'
 Restart=on-failure
 RestartSec=5
 
