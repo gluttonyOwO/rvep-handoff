@@ -9,7 +9,7 @@ User=mic-742
 Group=mic-742
 EnvironmentFile=/etc/rvep/r2-bridge.env
 Environment=ROS_DOMAIN_ID=0
-ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && exec python3 /opt/rvep/r2_bridge/main.py'
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && exec python3 /opt/rvep/r2-bridge/r2_bridge/main.py'
 Restart=on-failure
 RestartSec=5
 # On stop, give bridge time to publish final zero-twist before kill.

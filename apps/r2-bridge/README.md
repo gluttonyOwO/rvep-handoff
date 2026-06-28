@@ -37,7 +37,7 @@ sudo apt install ros-jazzy-twist-mux
 pip install --user --break-system-packages livekit==1.1.8
 
 # 2. Rsync app to R2
-sudo cp -r ./apps/r2-bridge/ /opt/rvep/r2-bridge/
+sudo cp -r ./apps/r2-bridge/ /opt/rvep/
 
 # 3. Write env file (token minted by backend or dev tool)
 sudo install -m 640 -o root -g mic-742 /dev/null /etc/rvep/r2-bridge.env
