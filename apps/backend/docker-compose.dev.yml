@@ -1,4 +1,4 @@
-# Dev-only compose. Adjusted for GCP Public RTC Routing Deployment.
+# Dev-only compose. Optimized for GCP Public RTC Routing Deployment (Host Network Mode).
 # Required env vars (put in apps/backend/.env, which must be gitignored):
 #   POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
 #   LIVEKIT_API_KEY, LIVEKIT_API_SECRET
@@ -20,9 +20,7 @@ services:
     container_name: rvep-postgres
     restart: unless-stopped
     ports:
-      # Loopback-only: prevents the entire LAN / public internet from reaching
-      # the DB with the configured credentials. Critical hardening: a publicly
-      # exposed Postgres superuser can RCE via `COPY ... FROM PROGRAM`.
+      # Loopback-only: 防止整個公網直接連入資料庫，確保基本的安全性漏洞防禦。
       - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_USER: postgres
@@ -47,39 +45,47 @@ services:
     networks: [backend]
 
   livekit:
-      image: livekit/livekit-server:v1.7.2
-      container_name: rvep-livekit
-      restart: unless-stopped
+    image: livekit/livekit-server:v1.7.2
+    container_name: rvep-livekit
+    restart: unless-stopped
+    
+    # 🌟 採用主機網路模式，繞過 Docker Proxy 代理層，埠口秒開不卡死！
+    network_mode: host
+    
+    environment:
+      LIVEKIT_KEYS: "devkey: devsecret"
+      LIVEKIT_PORT: 7880
+      LIVEKIT_BIND_ADDRESSES: "0.0.0.0"
       
-      # 🌟 核心修正 1：改用主機網路模式，繞過 Docker Proxy，10000 個埠口直接秒開！
-      network_mode: host
+      # WebRTC 媒體流使用 GCP 的 50000-60000 埠段
+      LIVEKIT_RTC_PORT_RANGE_START: 50000
+      LIVEKIT_RTC_PORT_RANGE_END: 60000
       
-      environment:
-        LIVEKIT_KEYS: "devkey: devsecret"
-        LIVEKIT_PORT: 7880
-        LIVEKIT_BIND_ADDRESSES: "0.0.0.0"
-        
-        # 🌟 核心修正 2：指定 WebRTC 媒體流使用 GCP 的 50000-60000 埠段
-        LIVEKIT_RTC_PORT_RANGE_START: 50000
-        LIVEKIT_RTC_PORT_RANGE_END: 60000
-        
-        # 🌟 核心修正 3：對外宣告你的 GCP 真實公網 IP
-        LIVEKIT_RTC_NODE_IP: "35.206.240.29"
-        LIVEKIT_LOG_LEVEL: info
-      healthcheck:
-        test: ["CMD", "wget", "-q", "--spider", "http://localhost:7880"]
-        interval: 10s
-        timeout: 5s
-        retries: 5
-      <<: *default-security
-      deploy:
-        resources:
-          limits:
-            cpus: "2"
-            memory: 1G
-      logging: *default-logging
-      # 🌟 注意：使用 host 模式時，不能與普通的 networks 混用，請刪除或註解掉這行：
-      # networks: [backend]
+      # 🌟 修正點 1：對外宣告你的新 GCP 真實公網 IP
+      LIVEKIT_RTC_NODE_IP: "34.81.247.142"
+      LIVEKIT_LOG_LEVEL: info
+
+      # 🌟 修正點 2：內建 TURN 服務同步對齊新公網 IP
+      LIVEKIT_TURN_ENABLED: "true"
+      LIVEKIT_TURN_DOMAIN: "34.81.247.142"       
+      LIVEKIT_TURN_EXTERNAL_IP: "34.81.247.142"  
+      
+      # TURN 標準埠口配置（請確保 GCP 防火牆已放行 UDP/TCP 3478）
+      LIVEKIT_TURN_UDP_PORT: 3478                
+      LIVEKIT_TURN_TCP_PORT: 3478                
+      
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:7880"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    <<: *default-security
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+    logging: *default-logging
 
 volumes:
   pgdata:

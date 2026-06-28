@@ -28,10 +28,12 @@ trap 'jobs -p | xargs -r kill 2>/dev/null; rm -f "$SOCK"; exit' EXIT INT TERM
 # 使用 I420 格式對接 x264enc，開啟非常快速與零延遲模式
 ( gst-launch-1.0 -q \
       v4l2src device="$DEVICE" \
-    ! 'video/x-raw, width=1280, height=720, framerate=30/1' \
+    ! 'video/x-raw, format=UYVY, width=1920, height=1536' \
+    ! videoscale \
+    ! 'video/x-raw, width=960, height=768' \
     ! videoconvert \
     ! 'video/x-raw, format=I420' \
-    ! x264enc speed-preset=veryfast tune=zerolatency bitrate="$BITRATE" key-int-max=30 byte-stream=true \
+    ! x264enc speed-preset=ultrafast tune=zerolatency bitrate="$BITRATE" key-int-max=30 byte-stream=true \
     ! h264parse \
     ! 'video/x-h264, stream-format=byte-stream, alignment=au' \
     ! fdsink fd=1 \
