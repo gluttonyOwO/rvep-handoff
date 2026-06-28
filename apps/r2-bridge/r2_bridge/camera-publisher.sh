@@ -6,7 +6,7 @@
 #   → socat stdin → UNIX-LISTEN socket
 #   → lk room join --publish=h264:///socket → LiveKit SFU
 #
-# Reads config from /etc/rvep/r2-bridge.env.
+# Reads config from /etc/rvep/r2-camera.env.
 
 set -e
 
