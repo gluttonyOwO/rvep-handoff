@@ -47,39 +47,39 @@ services:
     networks: [backend]
 
   livekit:
-    image: livekit/livekit-server:v1.7.2
-    container_name: rvep-livekit
-    restart: unless-stopped
-    ports:
-      # Signaling (WebSocket) 保持公網開放
-      - "0.0.0.0:7880:7880"
-      # 🌟 核心修正 1：將原本的 7882/udp 換成對齊 GCP 防火牆的 50000-60000 埠段
-      - "50000-60000:50000-60000/udp"
-    environment:
-      LIVEKIT_KEYS: "devkey: devsecret"
-      LIVEKIT_PORT: 7880
-      LIVEKIT_BIND_ADDRESSES: "0.0.0.0"
+      image: livekit/livekit-server:v1.7.2
+      container_name: rvep-livekit
+      restart: unless-stopped
       
-      # 🌟 核心修正 2：強制引導 LiveKit 分配 50000-60000 作為 WebRTC RTC 埠段
-      LIVEKIT_RTC_PORT_RANGE_START: 50000
-      LIVEKIT_RTC_PORT_RANGE_END: 60000
+      # 🌟 核心修正 1：改用主機網路模式，繞過 Docker Proxy，10000 個埠口直接秒開！
+      network_mode: host
       
-      # 🌟 核心修正 3：解開 127.0.0.1 鎖定！告訴小車與操作端網頁你的 GCP 公網 IP
-      LIVEKIT_RTC_NODE_IP: "35.206.221.67"
-      LIVEKIT_LOG_LEVEL: info
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:7880"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    <<: *default-security
-    deploy:
-      resources:
-        limits:
-          cpus: "2"
-          memory: 1G
-    logging: *default-logging
-    networks: [backend]
+      environment:
+        LIVEKIT_KEYS: "devkey: devsecret"
+        LIVEKIT_PORT: 7880
+        LIVEKIT_BIND_ADDRESSES: "0.0.0.0"
+        
+        # 🌟 核心修正 2：指定 WebRTC 媒體流使用 GCP 的 50000-60000 埠段
+        LIVEKIT_RTC_PORT_RANGE_START: 50000
+        LIVEKIT_RTC_PORT_RANGE_END: 60000
+        
+        # 🌟 核心修正 3：對外宣告你的 GCP 真實公網 IP
+        LIVEKIT_RTC_NODE_IP: "35.206.240.29"
+        LIVEKIT_LOG_LEVEL: info
+      healthcheck:
+        test: ["CMD", "wget", "-q", "--spider", "http://localhost:7880"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
+      <<: *default-security
+      deploy:
+        resources:
+          limits:
+            cpus: "2"
+            memory: 1G
+      logging: *default-logging
+      # 🌟 注意：使用 host 模式時，不能與普通的 networks 混用，請刪除或註解掉這行：
+      # networks: [backend]
 
 volumes:
   pgdata:
