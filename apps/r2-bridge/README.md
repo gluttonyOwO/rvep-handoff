@@ -60,7 +60,7 @@ sudo cp apps/r2-bridge/systemd/r2-twist-mux.service /etc/systemd/system/
 sudo cp apps/r2-bridge/systemd/r2-camera-publisher.service /etc/systemd/system/
 sudo cp apps/r2-bridge/systemd/r2-bridge.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now r2-twist-mux r2-bridge r2-camera-piblisher
+sudo systemctl enable --now r2-twist-mux r2-bridge r2-camera-publisher
 
 # 5. Verify
 sudo journalctl -u r2-bridge -f
