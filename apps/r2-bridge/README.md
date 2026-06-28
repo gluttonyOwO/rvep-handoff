@@ -42,6 +42,8 @@ sudo chmod +x /opt/rvep/r2-bridge/r2_bridge/camera-publisher.sh
 
 # 3. Write env file (token minted by backend or dev tool)
 sudo install -m 640 -o root -g mic-742 /dev/null /etc/rvep/r2-bridge.env
+sudo install -m 640 -o root -g mic-742 /dev/null /etc/rvep/r2-camera.env
+
 sudo tee /etc/rvep/r2-bridge.env <<EOF
 LIVEKIT_URL=ws://192.168.68.68:7880
 LIVEKIT_TOKEN=<paste JWT here>
@@ -52,6 +54,29 @@ HEARTBEAT_TIMEOUT_S=3.0
 LIVEKIT_API_KEY=devkey
 LIVEKIT_API_SECRET=devsecret
 ROOM=ugv-vehicle-001
+EOF
+
+
+sudo tee /etc/rvep/r2-camera.env <<EOF
+# --- LiveKit 連線與憑證設定 ---
+LIVEKIT_URL=ws://192.168.68.68:7880
+LIVEKIT_API_KEY=devkey
+LIVEKIT_API_SECRET=devsecret
+LIVEKIT_TOKEN=
+# --- 房間與車輛身份設定 ---
+ROOM=ugv-vehicle-001
+IDENTITY=r2-camera
+VEHICLE_ID=r2-001
+
+# --- 相機與影像編碼參數 (Jetson x264enc 專用) ---
+DEVICE=/dev/video0
+FPS=30
+BITRATE=1500
+
+# --- 機器人底盤與控制參數 ---
+MAX_LINEAR_MS=0.3
+MAX_ANGULAR_RADS=0.8
+HEARTBEAT_TIMEOUT_S=3.0
 EOF
 
 # 4. Install systemd units
