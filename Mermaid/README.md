@@ -1818,6 +1818,33 @@ Admin 目前需直接操作資料庫來管理 Room 與 Vehicle，前端僅提供
 
 **說明：** 專案中有兩套完全獨立且無共享程式碼的相機發布系統。Go Publisher 是目標架構（支援 NVENC 硬體編碼、IPC 管理、YAML 配置），但 R2 車輛仍使用舊的 Bash `camera-publisher.sh`（x264enc 軟體編碼、lk CLI、systemd 管理）。應將 R2 使用的 USB camera pipeline 整合進 Go Publisher 架構，建立統一 camera profile 實現單一發布層。
 
+### 9.13 邊緣端無音訊傳輸能力
+
+| # | 問題 | 嚴重性 | 說明 |
+|---|------|--------|------|
+| 1 | Edge Publisher 無音訊擷取 | 高 | GStreamer pipeline 全部為 video only，無 `pulsesrc`/`alsasrc`/`audiotestsrc` 等音訊來源 |
+| 2 | 無音訊編碼 | 高 | 無 `opusenc`/`avenc_aac`/`voaacenc` 等音訊編碼器 |
+| 3 | Publisher 僅發布 Video Track | 高 | `internal/publisher/livekit.go:76` 僅建立 `MimeType: webrtc.MimeTypeH264` 的 `LocalSampleTrack` |
+| 4 | Camera YAML profile 無音訊配置 | 高 | 所有 YAML 僅定義 `VideoProfile`，無 `AudioProfile` 或音訊 pipeline 欄位 |
+| 5 | Web Cockpit 無音訊播放介面 | 中 | 前端無喇叭圖示、音量控制、音訊串流訂閱；僅有操作員 PTT（Push-to-Talk）發布功能 |
+| 6 | `AudioDeviceSnapshot` 模型未使用 | 中 | Prisma schema 已定義音訊設備表，但無任何程式碼寫入 |
+| 7 | `vehicle.audioProfileId` 未實作 | 中 | Vehicle model 有 `audioProfileId` 欄位（seed 為 `"jabra-speak2-55"`），但無載入/發布機制 |
+| 8 | 無音訊類型定義 | 低 | `packages/shared/` 無音訊相關 schema 或型別；Telemetry audio 欄位為保留未用 |
+
+**影響範圍：** `apps/edge-publisher-go/` + `apps/web/` + `apps/r2-bridge/`
+
+**目前已有的音訊基礎建設（但皆未接上）：**
+
+| 項目 | 位置 | 說明 |
+|------|------|------|
+| 操作員 PTT | `apps/web/src/app/control/[vehicleId]/page.tsx:298-336` | 瀏覽器麥克風 → LiveKit `LocalAudioTrack`（operator→vehicle 方向，單向） |
+| `Vehicle.audioProfileId` | `apps/backend/prisma/schema.prisma:113` | 車輛音訊設定檔 ID（DB 欄位） |
+| `AudioDeviceSnapshot` | `apps/backend/prisma/schema.prisma:281-294` | 音訊設備快照模型（DB 表格已定義） |
+| `TelemetryFrame.audio` | `apps/backend/prisma/schema.prisma:200` | Telemetry 音訊保留欄位（Json?） |
+| `storage.audio` | `packages/shared/src/storage-paths.ts` | `{root}/audio/{sessionId}/audio.ogg` 儲存路徑已定義 |
+
+**說明：** 系統目前僅支援操作員端瀏覽器麥克風 PTT（Push-to-Talk）單向發布音訊至 LiveKit。邊緣端（Go Publisher / Edge Agent）完全無音訊擷取、編碼、發布能力。DB schema 雖預留了音訊相關欄位與模型，但皆無對應實作。若要實現車輛→操作員的雙向語音通訊，需從 GStreamer pipeline、Publisher audio track、Web UI playback 三端補齊。
+
 ---
 
 ## 10. Room / Vehicle / Identity 命名規則
