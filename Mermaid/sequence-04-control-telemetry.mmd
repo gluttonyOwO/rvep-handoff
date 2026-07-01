@@ -1,0 +1,34 @@
+%%{init: {"theme": "base", "themeVariables": {"background": "#FFF9C4", "primaryColor": "#1565C0", "primaryTextColor": "#FFFFFF", "primaryBorderColor": "#0D47A1", "lineColor": "#1A237E", "secondaryColor": "#E3F2FD", "tertiaryColor": "#BBDEFB", "actorBorder": "#0D47A1", "actorBkg": "#1565C0", "actorTextColor": "#FFFFFF", "actorLineColor": "#0D47A1", "signalColor": "#1A237E", "signalTextColor": "#1A237E", "signalLineColor": "#1A237E", "noteBkgColor": "#FFF176", "noteBorderColor": "#F9A825", "noteTextColor": "#1A237E", "loopBorderColor": "#1565C0", "loopBkgColor": "#E3F2FD", "loopTextColor": "#0D47A1", "activationBorderColor": "#1565C0", "activationBkgColor": "#BBDEFB", "sequenceNumberColor": "#1A237E"}}}%%
+sequenceDiagram
+    title 時序圖 4/7 — 控制命令與 Telemetry
+    %% 說明：Operator 拖曳 Joystick → Web Cockpit 以 10Hz throttle 編碼 MovementCommand
+    %%       經 LiveKit DataChannel (unreliable) → R2 Bridge 解碼為 ROS2 /rvep/cmd_vel
+    %%       車輛回傳 odom/IMU/battery → R2 Bridge 以 5Hz 編碼 Telemetry 送回 Cockpit
+    %% 雙路 Telemetry：R2 Bridge（真實感測器 5Hz）+ Edge Agent（Mock 5Hz，開發用）
+
+    participant O as "操作員\nOperator"
+    participant CP as "Web Cockpit\n(Next.js 3011)"
+    participant LK as "LiveKit SFU\n(v1.7.2)"
+    participant R2 as "R2 Bridge\n(Python ROS2)"
+    participant VH as "ROS2 Vehicle\n(Wheeltec AMR)"
+
+    O->>CP: 拖曳 Joystick (前進 0.5, 左轉 0.3)
+    CP->>CP: Gamepad 30Hz polling → throttle 10Hz
+    CP->>CP: encodeCommand({type:"movement", axes:{forward:0.5, yaw:-0.3}})
+    CP->>LK: DataChannel publishData(reliable=false)
+    LK-->>R2: DataChannel Message (JSON Uint8Array)
+    R2->>R2: json.loads() → dispatch "movement"
+    R2->>R2: adapter.publish_movement(0.5, 0, -0.3)
+    R2->>VH: ROS2 /rvep/cmd_vel (linear.x:0.3, angular.z:-0.45)
+    VH-->>R2: ROS2 /odom, /robot/PowerValtage, /imu_data
+    par R2 Bridge Telemetry 5Hz
+        R2->>R2: encodeTelemetry(velocity/odom/battery/imu)
+        R2->>LK: DataChannel publish (Telemetry)
+        LK-->>CP: DataChannel Message
+        CP->>CP: decodeTelemetry() → TelemetryHUD
+        CP-->>O: 更新 HUD (速度/電量/GPS/Network RTT)
+    and Edge Agent Telemetry 5Hz
+        EA->>EA: MockTelemetryPublisher 5Hz
+        EA->>LK: DataChannel publish (GPS/IMU/Battery/Network/VehicleStatus)
+        LK-->>CP: DataChannel Message
+    end

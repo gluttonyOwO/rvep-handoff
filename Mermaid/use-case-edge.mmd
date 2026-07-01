@@ -1,0 +1,17 @@
+%%{init: {"theme": "dark"}}%%
+flowchart TD
+  %% 使用案例圖 — 邊緣裝置 Edge Agent
+
+  subgraph Actor["參與者 Actor"]
+    EDGE["📡 邊緣裝置 Edge Agent"]
+  end
+
+  subgraph System["RVEP 系統"]
+    UC7["UC7 心跳監控 Heartbeat Safety"]
+    UC13["UC13 發佈影片串流 Publish Video"]
+    UC14["UC14 發佈 Telemetry Publish Telemetry"]
+  end
+
+  EDGE --> UC13
+  EDGE --> UC14
+  EDGE --> UC7

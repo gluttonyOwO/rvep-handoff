@@ -1,0 +1,171 @@
+%%{init: {"theme": "base", "themeVariables": {"background": "#FFF9C4", "primaryColor": "#1565C0", "primaryTextColor": "#FFFFFF", "primaryBorderColor": "#0D47A1", "lineColor": "#0D47A1", "secondaryColor": "#1E88E5", "tertiaryColor": "#1565C0", "entityBorderColor": "#0D47A1", "entityBkgColor": "#1565C0", "entityTextColor": "#FFFFFF", "attributeBorderColor": "#0D47A1", "attributeBkgColor": "#1E88E5", "attributeTextColor": "#FFFFFF", "relationshipColor": "#0D47A1", "relationshipTextColor": "#0D47A1"}}}%%
+erDiagram
+  User {
+    String id PK "UUID, @default(uuid())"
+    String email UK "登入信箱, @unique"
+    String passwordHash "bcrypt 雜湊"
+    Enum role "ADMIN | OPERATOR | VIEWER"
+    DateTime createdAt "註冊時間, @default(now())"
+    DateTime updatedAt "更新時間, @updatedAt"
+    Int failedLoginCount "連續失敗次數, @default(0)"
+    DateTime lockedUntil "鎖定截止時間 (null=未鎖定)"
+    Int refreshTokenVersion "Token 版號 (每換發+1), @default(0)"
+  }
+
+  Vehicle {
+    String id PK "UUID, @default(uuid())"
+    String vehicleId UK "商業識別碼 (ex: r2-01), @unique"
+    String displayName "顯示名稱 (ex: AMR-01)"
+    Enum vehicleType "QUADRUPED | WHEELED | WHEELED_QUADRUPED | RC_CAR | DRONE | CUSTOM"
+    String adapterType "車輛適配器類型 (ex: wheeltec_amr)"
+    String platformId "平台 ID"
+    String cameraProfileId "相機設定檔 ID"
+    String audioProfileId "音訊設定檔 ID"
+    Json capabilities "能力宣告陣列 (ex: [movement,wheels])"
+    Enum status "ONLINE | OFFLINE | SAFE_MODE | DISCONNECTED | UNKNOWN, @default(OFFLINE)"
+    DateTime createdAt "建立時間, @default(now())"
+    DateTime updatedAt "更新時間, @updatedAt"
+  }
+
+  VehiclePermission {
+    String id PK "UUID, @default(uuid())"
+    String userId FK "使用者 UUID"
+    String vehicleId FK "車輛 UUID"
+    Enum role "ADMIN | OPERATOR | VIEWER"
+    String grantedBy FK "授權者 UUID (null=系統自動)"
+    DateTime createdAt "建立時間, @default(now())"
+    DateTime updatedAt "更新時間, @updatedAt"
+  }
+
+  Session {
+    String id PK "UUID, @default(uuid())"
+    String sessionId UK "商業識別碼 (ex: ses_abc123), @unique"
+    String vehicleId FK "車輛 UUID"
+    String userId FK "使用者 UUID"
+    Enum purpose "CONTROL | MONITOR | DATASET | RAW"
+    BigInt connectionEpoch "連線紀元 (G2G 延遲計算基數), @default(1)"
+    String datasetVersion "資料集版本標籤, @default(v1)"
+    String datasetPath "資料集路徑 (null=尚未產生)"
+    Enum status "ACTIVE | CLOSED | FATAL"
+    DateTime createdAt "建立時間, @default(now())"
+    DateTime closedAt "關閉時間 (null=進行中)"
+  }
+
+  ControlLease {
+    String id PK "UUID, @default(uuid())"
+    String vehicleId FK "車輛 UUID"
+    String operatorId FK "當前操作員 UUID"
+    String sessionId FK "綁定 Session UUID"
+    BigInt connectionEpoch "連線紀元"
+    Enum status "ACTIVE | LOCKED | RECONNECTED_LOCKED | RELEASED | REVOKED"
+    DateTime expiresAt "租約到期時間 (30min TTL)"
+    DateTime createdAt "建立時間, @default(now())"
+    DateTime updatedAt "更新時間, @updatedAt"
+    DateTime releasedAt "正常釋放時間 (null=未釋放)"
+    DateTime revokedAt "被管理員撤銷時間 (null=未撤銷)"
+  }
+
+  TelemetryFrame {
+    BigInt id PK "auto increment"
+    String vehicleId FK "(ref: Vehicle.vehicleId)"
+    String sessionId "Session 商業識別碼 (非 FK)"
+    DateTime ts "取樣時間戳 (ISO 8601)"
+    BigInt monotonicNs "單調遞增奈秒 (null=舊版)"
+    BigInt connectionEpoch "連線紀元"
+    Json gps "GPS 資料: {lat, lng, alt, speed, sat} (null=無)"
+    Json imu "IMU 資料: {ax, ay, az, gx, gy, gz} (null=無)"
+    Json battery "電量: {voltage, percentage, current} (null=無)"
+    Json network "網路: {rttMs, packetLoss} (null=無)"
+    String mode "車輛模式 (null=未知)"
+    Json camera "相機資料 (預留, null=無)"
+    Json audio "音訊資料 (預留, null=無)"
+  }
+
+  EventLog {
+    BigInt id PK "auto increment"
+    String vehicleId "車輛 UUID (null=系統事件)"
+    String sessionId "Session 識別碼 (null=非 Session 事件)"
+    String userId "使用者 UUID (null=系統事件)"
+    String eventName "事件名稱 (ex: safe_mode_entered)"
+    DateTime ts "事件時間, @default(now())"
+    Json payload "事件附帶資料 (null=無)"
+  }
+
+  NetworkLog {
+    BigInt id PK "auto increment"
+    String vehicleId FK "(ref: Vehicle.vehicleId)"
+    String sessionId FK "(ref: Session.id)"
+    BigInt connectionEpoch "連線紀元"
+    DateTime ts "記錄時間"
+    String state "網路狀態 (ex: connected, disconnected)"
+    Float rttMs "來回延遲 ms (null=無)"
+    Float jitterMs "抖動 ms (null=無)"
+    Float packetLoss "封包遺失率 0~1 (null=無)"
+    Int reconnectCount "重連次數 (null=0)"
+    String reason "狀態變更原因 (null=無)"
+  }
+
+  ControlLog {
+    BigInt id PK "auto increment"
+    String vehicleId FK "(ref: Vehicle.vehicleId)"
+    String operatorId "操作員 UUID"
+    String sessionId FK "(ref: Session.id)"
+    BigInt connectionEpoch "連線紀元"
+    BigInt seq "命令序列號"
+    DateTime ts "命令時間"
+    String commandType "命令類型 (movement | emergency_stop | ...)"
+    Json axes "搖桿軸值: {forward, lateral, yaw} (null=非移動命令)"
+    Boolean accepted "是否被接受"
+    String rejectedReason "拒絕原因 (null=已接受)"
+    Json adapterResult "適配器執行結果 (null=無)"
+  }
+
+  DatasetAsset {
+    String id PK "UUID, @default(uuid())"
+    String vehicleId FK "(ref: Vehicle.vehicleId)"
+    String sessionId FK "(ref: Session.id)"
+    String cameraId "相機 ID (null=全景/非相機資料)"
+    Enum kind "RAW | ANNOTATED | EGRESS_PER_TRACK | EGRESS_COMPOSITE | METADATA | LOG"
+    Enum source "ORIN_LOCAL | ORIN_RSYNC | LIVEKIT_EGRESS | MANUAL_UPLOAD"
+    String path "儲存路徑"
+    BigInt sizeBytes "檔案大小 byte (null=未知)"
+    BigInt durationMs "錄製時長 ms (null=非連續資料)"
+    String sha256 "SHA256 雜湊 (null=未計算)"
+    DateTime createdAt "建立時間, @default(now())"
+    DateTime syncedAt "同步完成時間 (null=未同步)"
+    Enum retentionTier "EPHEMERAL | ROLLING_30D | ROLLING_90D | PERMANENT, @default(ROLLING_30D)"
+    Json metadata "自訂 metadata (null=無)"
+  }
+
+  AudioDeviceSnapshot {
+    BigInt id PK "auto increment"
+    String vehicleId FK "(ref: Vehicle.vehicleId)"
+    String sessionId FK "(ref: Session.id, nullable)"
+    DateTime ts "擷取時間"
+    String deviceId "音訊裝置 ID"
+    String displayName "顯示名稱 (null=未知)"
+    String driverType "驅動類型 (ex: ALSA, null=未知)"
+    Int sampleRate "取樣率 Hz (null=未知)"
+    Int inputChannels "輸入聲道數 (null=未知)"
+    String status "裝置狀態 (ex: active, inactive)"
+  }
+
+  User ||--o{ VehiclePermission : "UserPermissions (userId → User.id)"
+  User ||--o{ VehiclePermission : "GrantedPermissions (grantedBy → User.id)"
+  User ||--o{ Session : "userId → User.id"
+  User ||--o{ ControlLease : "operatorId → User.id"
+
+  Vehicle ||--o{ VehiclePermission : "vehicleId → Vehicle.id"
+  Vehicle ||--o{ Session : "vehicleId → Vehicle.id"
+  Vehicle ||--o{ ControlLease : "vehicleId → Vehicle.id"
+  Vehicle ||--o{ TelemetryFrame : "(ref: Vehicle.vehicleId)"
+  Vehicle ||--o{ NetworkLog : "(ref: Vehicle.vehicleId)"
+  Vehicle ||--o{ ControlLog : "(ref: Vehicle.vehicleId)"
+  Vehicle ||--o{ DatasetAsset : "(ref: Vehicle.vehicleId)"
+  Vehicle ||--o{ AudioDeviceSnapshot : "(ref: Vehicle.vehicleId)"
+
+  Session ||--o{ ControlLease : "sessionId → Session.id"
+  Session ||--o{ NetworkLog : "sessionId → Session.id"
+  Session ||--o{ ControlLog : "sessionId → Session.id"
+  Session ||--o{ DatasetAsset : "sessionId → Session.id"
+  Session ||--o{ AudioDeviceSnapshot : "sessionId → Session.id (nullable)"

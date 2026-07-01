@@ -1,0 +1,43 @@
+%%{init: {"theme": "base", "themeVariables": {"background": "#FFF9C4", "primaryColor": "#1565C0", "primaryTextColor": "#FFFFFF", "primaryBorderColor": "#0D47A1", "lineColor": "#1A237E", "secondaryColor": "#E3F2FD", "tertiaryColor": "#BBDEFB", "actorBorder": "#0D47A1", "actorBkg": "#1565C0", "actorTextColor": "#FFFFFF", "actorLineColor": "#0D47A1", "signalColor": "#1A237E", "signalTextColor": "#1A237E", "signalLineColor": "#1A237E", "noteBkgColor": "#FFF176", "noteBorderColor": "#F9A825", "noteTextColor": "#1A237E", "loopBorderColor": "#1565C0", "loopBkgColor": "#E3F2FD", "loopTextColor": "#0D47A1", "activationBorderColor": "#1565C0", "activationBkgColor": "#BBDEFB", "sequenceNumberColor": "#1A237E"}}}%%
+sequenceDiagram
+    title 時序圖 6/7 — 異常場景：心跳超時與恢復
+    %% 說明：心跳中斷 > 3 秒 → Edge Agent 進入 safe_mode（停止 video）、R2 Bridge 發布停車指令
+    %%       Cockpit 顯示 SafetyBanner + RecoveryModal（全屏 focus trap）
+    %%       Operator 確認安全後點擊「恢復控制權」→ resume_control（reliable=true）
+    %%       Edge Agent 確認心跳新鮮度 < 1s → leaveSafeMode → 重啟 Go Publisher 恢復串流
+    %% 關鍵：雙路獨立超時（Edge + R2），恢復需 operator 手動確認
+
+    participant O as "操作員\nOperator"
+    participant CP as "Web Cockpit\n(Next.js 3011)"
+    participant LK as "LiveKit SFU\n(v1.7.2)"
+    participant EA as "Edge Agent\n(TypeScript)"
+    participant GP as "Go Publisher\n(GStreamer + NVENC)"
+    participant R2 as "R2 Bridge\n(Python ROS2)"
+
+    CP-xLK: 心跳中斷（網路不穩 > 3s）
+    par Edge Agent 超時
+        EA->>EA: startHeartbeatWatcher: age > 3000ms
+        EA->>EA: enterSafeMode("heartbeat_timeout")
+        EA->>GP: IPC: stop (reason: safe_mode)
+        GP->>LK: 停止 Video Track
+        EA->>LK: DataChannel publish (SafetyEvent: safe_mode_entered)
+    and R2 Bridge 超時
+        R2->>R2: Watchdog: elapsed > HEARTBEAT_TIMEOUT_S=3.0
+        R2->>R2: trigger_stop() → adapter.publish_stop()
+        R2->>VH: ROS2 /rvep/emergency_stop (Twist zero)
+        R2->>LK: DataChannel publish (SafetyEvent: safe_mode_entered)
+    end
+    LK-->>CP: SafetyEvent Received
+    CP->>CP: SafetyBanner (amber/red tone) + Joystick disabled
+    CP->>CP: RecoveryModal (全屏, focus trap)
+    CP-->>O: 警示「車輛處於安全模式」
+    O->>CP: 確認周圍安全 → 點擊「我已準備好 — 恢復控制權」
+    CP->>LK: DataChannel publish({type:"resume_control", acknowledgement:"operator_confirmed"}, reliable=true)
+    LK-->>EA: ResumeControlCommand
+    EA->>EA: 檢查 lastHeartbeatAt < 1000ms
+    EA->>EA: leaveSafeMode() → 重啟 Go Publisher
+    EA->>GP: IPC: start (恢復串流)
+    GP->>LK: 恢復 Video Track
+    EA->>LK: DataChannel publish (SafetyEvent: safe_mode_left)
+    LK-->>CP: 恢復正常操作
+    CP-->>O: 更新 HUD + 啟用 Joystick

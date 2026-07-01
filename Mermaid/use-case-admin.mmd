@@ -1,0 +1,23 @@
+%%{init: {"theme": "dark"}}%%
+flowchart TD
+  %% 使用案例圖 — 管理員 Admin
+
+  subgraph Actor["參與者 Actor"]
+    ADM["🛡 管理員 Admin"]
+  end
+
+  subgraph System["RVEP 系統"]
+    UC1["UC1 登入系統 Login"]
+    UC2["UC2 檢視車隊 View Fleet"]
+    UC9["UC9 管理權限 Manage Permissions"]
+    UC10["UC10 審計日誌 View Audit Logs"]
+    UC11["UC11 管理資料集 Manage Datasets"]
+    UC12["UC12 接管控制 Takeover Control"]
+  end
+
+  ADM --> UC1
+  ADM --> UC2
+  ADM --> UC9
+  ADM --> UC10
+  ADM --> UC11
+  ADM --> UC12

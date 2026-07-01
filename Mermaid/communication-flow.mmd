@@ -1,0 +1,169 @@
+%%{init: {"theme": "dark"}}%%
+graph TB
+  %% title: 通訊流程圖 — RVEP 系統資料流
+  %% 說明：展示 RVEP 系統中所有元件之間的通訊協定與資料流方向。
+  %%
+  %% 分層架構（由左至右）：
+  %%   Web 前端 (3011) — Operator Cockpit：Joystick 控制 + Telemetry HUD + Safety 顯示
+  %%   後端 API (3010) — REST API：JWT Auth + Prisma ORM + PostgreSQL
+  %%   LiveKit SFU (7880) — WebRTC SFU：雙向 DataChannel + H.264 Video Tracks
+  %%   邊緣裝置 (AGX Orin) — Go Publisher（NVENC 編碼）+ Edge Agent（IPC Server + Telemetry 5Hz）
+  %%   車輛層 — R2 Bridge（Python ROS2 橋接）+ ROS2 Vehicle（cmd_vel / odom / IMU）
+  %%
+  %% 通訊協定：
+  %%   ● HTTP REST (JSON) — Cockpit ↔ Backend、Edge Agent → Backend
+  %%   ● WebRTC (SRTP/SCTP) — Cockpit ↔ LiveKit（Subscribe Video）
+  %%   ● DataChannel (SCTP) — ControlCommand → Edge、Telemetry → Cockpit、Heartbeat 1Hz
+  %%   ● Unix Socket (JSON Lines) — Edge Agent ↔ Go Publisher（IPC heartbeat + start/stop）
+  %%   ● ROS2 Topics (DDS) — R2 Bridge ↔ Vehicle（/rvep/cmd_vel /odom /IMU /Battery）
+  %%   ● PostgreSQL (TCP 5432) — Backend ↔ Database
+
+  subgraph Web_Frontend ["Web 前端 (Port 3011)"]
+    CP["Operator Cockpit
+    Next.js 15 / Tailwind CSS v4
+    Joystick / Telemetry HUD / Safety"]
+    AC["API Client
+    Zustand Store
+    fetch() / polling"]
+  end
+
+  subgraph Backend ["後端 API (Port 3010)"]
+    API["Next.js App Router
+    REST API Endpoints"]
+    JWT["JWT Auth Middleware
+    jose / bcryptjs"]
+    DB[("PostgreSQL 16
+    Prisma ORM")]
+  end
+
+  subgraph LB ["LiveKit SFU (Port 7880)"]
+    LK["LiveKit Server v1.7.2
+    WebRTC SFU / TURN"]
+    DC["双向 DataChannel
+    ControlCommand → Edge
+    Telemetry → Cockpit
+    SafetyEvent → Cockpit
+    Heartbeat 1Hz"]
+    VID["H.264 Video Tracks
+    NVENC 編碼"]
+  end
+
+  subgraph Edge_Device ["邊緣裝置 (AGX Orin)"]
+    subgraph Go_Publisher ["Go Video Publisher"]
+      GST["GStreamer Pipeline
+      NVENC H.264 Encode"]
+      IPC_C["IPC Client
+      Unix Socket"]
+    end
+    subgraph Edge_Agent ["Edge Agent (TypeScript)"]
+      LK_AGENT["LiveKit Participant
+      @livekit/rtc-node"]
+      TELE["TelemetryPublisher
+      5Hz DataChannel"]
+      IPC_S["GoPublisherManager
+      IPC Server"]
+      HTTP_CLIENT["Internal API Client
+      fetch()"]
+    end
+  end
+
+  subgraph Vehicle ["車輛層"]
+    subgraph R2_Bridge ["R2 Bridge (Python)"]
+      LK_BRIDGE["LiveKit Participant
+      DataChannel 訂閱"]
+      ROS2_BRIDGE["ROS2 Publisher / Subscriber
+      rclpy"]
+      WATCHDOG["Watchdog Timer
+      3秒 Heartbeat 超時
+      → Safe Mode"]
+    end
+    ROS2_VEH["ROS2 Vehicle
+    cmd_vel / odom / IMU
+    Wheeltec AMR"]
+  end
+
+  subgraph Dev ["開發支援"]
+    Mock_E["Mock Edge Agent
+    TypeScript 模擬"]
+    Shared["@rvep/shared
+    Zod Schemas"]
+  end
+
+  %% === Protocol Layer ===
+  style Protocol fill:#1a1a2e,stroke:#e94560,stroke-width:3px
+
+  Protocol("通訊協定層
+  ──────────────
+  ● HTTP REST (JSON)
+  ● WebRTC (SRTP/SCTP)
+  ● DataChannel (SCTP)
+  ● Unix Socket (JSON Lines)
+  ● ROS2 Topics (DDS)
+  ● PostgreSQL (TCP 5432)")
+
+  %% === Connections ===
+
+  %% Cockpit ↔ Backend (HTTP REST)
+  CP -->|"HTTPS :3010\nLogin / Vehicles / Lease"| API
+  API --> JWT
+  API --> DB
+
+  %% Cockpit ↔ LiveKit (WebRTC)
+  CP -->|"WebRTC :7880\nSubscribe Video + DataChannel"| LK
+
+  %% Go Publisher → LiveKit (WebRTC Video)
+  GST -->|"H.264 Video Track\nNVENC HW Encoding"| VID
+  VID --> LK
+
+  %% Go Publisher ↔ Edge Agent (IPC Unix Socket)
+  GST -.-> IPC_C
+  IPC_C <-->|"Unix Socket\nJSON Lines Protocol"| IPC_S
+  IPC_S --> LK_AGENT
+
+  %% Edge Agent → LiveKit (DataChannel)
+  LK_AGENT -->|"Telemetry (5Hz)\nSafetyEvent"| DC
+  TELE --> LK_AGENT
+
+  %% Edge Agent → Backend (HTTP Internal)
+  HTTP_CLIENT -->|"HTTP :3010\nx-internal-token\nTelemetryFrame (1Hz)\nControlEvent\nDatasetAsset"| API
+
+  %% R2 Bridge ↔ LiveKit (DataChannel)
+  LK_BRIDGE <-->|"Subscribe ControlCommand\nPublish Telemetry\nHeartbeat Watchdog"| DC
+
+  %% R2 Bridge ↔ ROS2 Vehicle
+  ROS2_BRIDGE -->|"ROS2 /rvep/cmd_vel"| ROS2_VEH
+  ROS2_VEH -->|"ROS2 /odom /IMU /Battery"| ROS2_BRIDGE
+
+  %% Mock Edge → LiveKit
+  Mock_E -->|"Simulated Video + Telemetry"| LK
+
+  %% Shared Package Dependencies
+  Shared -.-> CP
+  Shared -.-> Edge_Agent
+  Shared -.-> R2_Bridge
+  Shared -.-> Mock_E
+
+  %% === Legend ===
+  subgraph Legend [圖例]
+    L1["── HTTP REST API"]
+    L2["── WebRTC (影片串流)"]
+    L3["── WebRTC DataChannel"]
+    L4["- - Unix Socket IPC"]
+    L5["── ROS2 Topics (DDS)"]
+    L6["- - Schema 共享"]
+  end
+
+  linkStyle 0 stroke:#4fc3f7,stroke-width:2px
+  linkStyle 1 stroke:#4fc3f7,stroke-width:2px
+  linkStyle 2 stroke:#ff9800,stroke-width:2px
+  linkStyle 3 stroke:#ff9800,stroke-width:2px
+  linkStyle 4 stroke:#e040fb,stroke-width:2px
+  linkStyle 5 stroke:#e040fb,stroke-width:2px
+  linkStyle 6 stroke:#4fc3f7,stroke-width:2px
+  linkStyle 7 stroke:#66bb6a,stroke-width:2px
+  linkStyle 8 stroke:#66bb6a,stroke-width:2px
+  linkStyle 9 stroke:#66bb6a,stroke-width:2px
+  linkStyle 10 stroke:#ff5722,stroke-width:2px
+  linkStyle 11 stroke:#ff5722,stroke-width:2px
+  linkStyle 12 stroke:#ff9800,stroke-width:2px
+  linkStyle 13 stroke:#aaa,stroke-width:1px,stroke-dasharray: 5 5

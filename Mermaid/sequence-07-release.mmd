@@ -1,0 +1,29 @@
+%%{init: {"theme": "base", "themeVariables": {"background": "#FFF9C4", "primaryColor": "#1565C0", "primaryTextColor": "#FFFFFF", "primaryBorderColor": "#0D47A1", "lineColor": "#1A237E", "secondaryColor": "#E3F2FD", "tertiaryColor": "#BBDEFB", "actorBorder": "#0D47A1", "actorBkg": "#1565C0", "actorTextColor": "#FFFFFF", "actorLineColor": "#0D47A1", "signalColor": "#1A237E", "signalTextColor": "#1A237E", "signalLineColor": "#1A237E", "noteBkgColor": "#FFF176", "noteBorderColor": "#F9A825", "noteTextColor": "#1A237E", "loopBorderColor": "#1565C0", "loopBkgColor": "#E3F2FD", "loopTextColor": "#0D47A1", "activationBorderColor": "#1565C0", "activationBkgColor": "#BBDEFB", "sequenceNumberColor": "#1A237E"}}}%%
+sequenceDiagram
+    title 時序圖 7/7 — 釋放控制
+    %% 說明：Operator 離開駕駛艙 → Cockpit 釋放 ControlLease（狀態 RELEASED + releasedAt）
+    %%       離開 LiveKit Room → Edge Agent 收到 ParticipantDisconnect Event →
+    %%       停止 Go Publisher video → 進入 safe_mode（operator_disconnected）→
+    %%       關閉 Session（狀態 CLOSED）
+    %% 關鍵：Lease release → 中斷影片串流 → 關閉 Session，完整生命週期結束
+
+    participant O as "操作員\nOperator"
+    participant CP as "Web Cockpit\n(Next.js 3011)"
+    participant API as "Backend API\n(Next.js 3010)"
+    participant DB as "PostgreSQL\nDatabase"
+    participant LK as "LiveKit SFU\n(v1.7.2)"
+    participant EA as "Edge Agent\n(TypeScript)"
+    participant GP as "Go Publisher\n(GStreamer + NVENC)"
+
+    O->>CP: 離開駕駛艙
+    CP->>API: POST /api/v1/vehicles/vehicle-001/control-lease/release
+    API->>DB: 更新 Lease Status → RELEASED (releasedAt)
+    DB-->>API: Done
+    API-->>CP: Lease Released
+    CP->>LK: 離開 LiveKit Room (disconnect)
+    LK-->>EA: ParticipantDisconnect Event
+    EA->>GP: IPC: stop (reason: user_left)
+    GP->>LK: 停止 Video Track
+    EA->>EA: enterSafeMode("operator_disconnected")
+    EA->>API: POST /api/v1/sessions/close
+    API->>DB: 更新 Session Status → CLOSED

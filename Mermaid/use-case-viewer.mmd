@@ -1,0 +1,17 @@
+%%{init: {"theme": "dark"}}%%
+flowchart TD
+  %% 使用案例圖 — 觀察者 Viewer
+
+  subgraph Actor["參與者 Actor"]
+    VWR["👁 觀察者 Viewer"]
+  end
+
+  subgraph System["RVEP 系統"]
+    UC1["UC1 登入系統 Login"]
+    UC2["UC2 檢視車隊 View Fleet"]
+    UC6["UC6 監看 Telemetry Monitor Telemetry"]
+  end
+
+  VWR --> UC1
+  VWR --> UC2
+  VWR --> UC6

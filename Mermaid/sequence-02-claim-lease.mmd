@@ -1,0 +1,30 @@
+%%{init: {"theme": "base", "themeVariables": {"background": "#FFF9C4", "primaryColor": "#1565C0", "primaryTextColor": "#FFFFFF", "primaryBorderColor": "#0D47A1", "lineColor": "#1A237E", "secondaryColor": "#E3F2FD", "tertiaryColor": "#BBDEFB", "actorBorder": "#0D47A1", "actorBkg": "#1565C0", "actorTextColor": "#FFFFFF", "actorLineColor": "#0D47A1", "signalColor": "#1A237E", "signalTextColor": "#1A237E", "signalLineColor": "#1A237E", "noteBkgColor": "#FFF176", "noteBorderColor": "#F9A825", "noteTextColor": "#1A237E", "loopBorderColor": "#1565C0", "loopBkgColor": "#E3F2FD", "loopTextColor": "#0D47A1", "activationBorderColor": "#1565C0", "activationBkgColor": "#BBDEFB", "sequenceNumberColor": "#1A237E"}}}%%
+sequenceDiagram
+    title 時序圖 2/7 — 獲取控制租約
+    %% 說明：Operator 選擇車輛後，建立 Session + 取得 ControlLease（30分鐘 TTL），
+    %%       再向 LiveKit 請求 operator role 的 Room Token。
+    %% 流程：選擇車輛 → POST sessions → 建立 Session
+    %%       → POST control-lease/claim（pg_advisory_lock 防重入）→ 建立 Lease
+    %%       → POST livekit/token → 簽發 LiveKit JWT（含 roomJoin + canPublish + canSubscribe）
+
+    participant O as "操作員\nOperator"
+    participant CP as "Web Cockpit\n(Next.js 3011)"
+    participant API as "Backend API\n(Next.js 3010)"
+    participant DB as "PostgreSQL\nDatabase"
+    participant LK as "LiveKit SFU\n(v1.7.2)"
+
+    O->>CP: 選擇車輛「AMR-01」
+    CP->>API: POST /api/v1/vehicles/vehicle-001/sessions
+    API->>DB: 建立 Session (ACTIVE)
+    DB-->>API: Session Created
+    API-->>CP: sessionId
+    CP->>API: POST /api/v1/vehicles/vehicle-001/control-lease/claim
+    API->>API: pg_advisory_xact_lock(vehicle-001)
+    API->>DB: 查詢現有 ACTIVE Lease
+    DB-->>API: 無衝突
+    API->>DB: 建立 ControlLease (ACTIVE, 30min TTL)
+    DB-->>API: Lease Created
+    API-->>CP: Lease Claimed
+    CP->>API: POST /api/v1/livekit/token
+    API->>API: 簽發 LiveKit Token (role: operator)
+    API-->>CP: LiveKit Token + Room 資訊

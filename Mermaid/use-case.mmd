@@ -1,0 +1,35 @@
+%%{init: {"theme": "dark"}}%%
+flowchart TD
+  %% 使用案例圖 — RVEP 系統（Mermaid v11 已移除 useCase 圖型，以 flowchart 替代）
+
+  subgraph Actors["參與者 Actors"]
+    OPER[👤 操作員<br/>Operator]
+    ADM[🛡 管理員<br/>Admin]
+    VWR[👁 觀察者<br/>Viewer]
+    EDGE[📡 邊緣裝置<br/>Edge Agent]
+    VHCL[🚗 車輛<br/>ROS2 Vehicle]
+  end
+
+  subgraph RVEP["RVEP 系統"]
+    UC1["UC1 登入系統 Login"]
+    UC2["UC2 檢視車隊 View Fleet"]
+    UC3["UC3 獲取控制權 Claim Lease"]
+    UC4["UC4 操作車輛 Control Vehicle"]
+    UC5["UC5 緊急停止 Emergency Stop"]
+    UC6["UC6 監看 Telemetry Monitor Telemetry"]
+    UC7["UC7 心跳監控 Heartbeat Safety"]
+    UC8["UC8 安全模式恢復 Recover Safe Mode"]
+    UC9["UC9 管理權限 Manage Permissions"]
+    UC10["UC10 審計日誌 View Audit Logs"]
+    UC11["UC11 管理資料集 Manage Datasets"]
+    UC12["UC12 接管控制 Takeover Control"]
+    UC13["UC13 發佈影片串流 Publish Video"]
+    UC14["UC14 發佈 Telemetry Publish Telemetry"]
+    UC15["UC15 執行控制命令 Execute Control Cmd"]
+  end
+
+  OPER --> UC1 & UC2 & UC3 & UC4 & UC5 & UC6 & UC7 & UC8
+  ADM --> UC1 & UC2 & UC9 & UC10 & UC11 & UC12
+  VWR --> UC1 & UC2 & UC6
+  EDGE --> UC13 & UC14 & UC7
+  VHCL --> UC15

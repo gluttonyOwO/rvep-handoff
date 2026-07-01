@@ -1,0 +1,28 @@
+%%{init: {"theme": "base", "themeVariables": {"background": "#FFF9C4", "primaryColor": "#1565C0", "primaryTextColor": "#FFFFFF", "primaryBorderColor": "#0D47A1", "lineColor": "#1A237E", "secondaryColor": "#E3F2FD", "tertiaryColor": "#BBDEFB", "actorBorder": "#0D47A1", "actorBkg": "#1565C0", "actorTextColor": "#FFFFFF", "actorLineColor": "#0D47A1", "signalColor": "#1A237E", "signalTextColor": "#1A237E", "signalLineColor": "#1A237E", "noteBkgColor": "#FFF176", "noteBorderColor": "#F9A825", "noteTextColor": "#1A237E", "loopBorderColor": "#1565C0", "loopBkgColor": "#E3F2FD", "loopTextColor": "#0D47A1", "activationBorderColor": "#1565C0", "activationBkgColor": "#BBDEFB", "sequenceNumberColor": "#1A237E"}}}%%
+sequenceDiagram
+    title 時序圖 3/7 — 連線 LiveKit 與串流
+    %% 說明：Cockpit 加入 LiveKit Room 訂閱 Video/Data Channel；Edge Agent 透過 IPC
+    %%       啟動 Go Publisher（GStreamer NVENC H.264 編碼），Go Publisher 以獨立
+    %%       participant 身分發布 Video Track。每秒 IPC heartbeat 回報編碼狀態。
+    %% 流程：CP 加入 Room (Subscribe) → EA IPC start → GP 啟動 NVENC 編碼 →
+    %%       GP publishDataTrack → LK 轉發 Video 至 CP → 每秒 IPC heartbeat
+
+    participant O as "操作員\nOperator"
+    participant CP as "Web Cockpit\n(Next.js 3011)"
+    participant LK as "LiveKit SFU\n(v1.7.2)"
+    participant EA as "Edge Agent\n(TypeScript)"
+    participant GP as "Go Publisher\n(GStreamer + NVENC)"
+
+    O->>CP: 進入駕駛艙
+    CP->>LK: 加入 Room (WebRTC Subscribe)
+    EA->>LK: 已存在 Room 中 (Edge Agent Participant)
+    EA->>GP: IPC: start (LiveKit Token + Pipeline 配置)
+    activate GP
+    GP->>GP: GStreamer NVENC H.264 編碼
+    GP->>LK: publishDataTrack() → Video Track
+    LK-->>CP: 接收 Video Track → 渲染 <video>
+    CP-->>O: 顯示即時影像
+    deactivate GP
+    loop 1Hz IPC Heartbeat
+        GP->>EA: IPC: heartbeat (FPS, dropped frames)
+    end

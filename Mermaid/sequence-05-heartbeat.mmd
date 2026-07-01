@@ -1,0 +1,27 @@
+%%{init: {"theme": "base", "themeVariables": {"background": "#FFF9C4", "primaryColor": "#1565C0", "primaryTextColor": "#FFFFFF", "primaryBorderColor": "#0D47A1", "lineColor": "#1A237E", "secondaryColor": "#E3F2FD", "tertiaryColor": "#BBDEFB", "actorBorder": "#0D47A1", "actorBkg": "#1565C0", "actorTextColor": "#FFFFFF", "actorLineColor": "#0D47A1", "signalColor": "#1A237E", "signalTextColor": "#1A237E", "signalLineColor": "#1A237E", "noteBkgColor": "#FFF176", "noteBorderColor": "#F9A825", "noteTextColor": "#1A237E", "loopBorderColor": "#1565C0", "loopBkgColor": "#E3F2FD", "loopTextColor": "#0D47A1", "activationBorderColor": "#1565C0", "activationBkgColor": "#BBDEFB", "sequenceNumberColor": "#1A237E"}}}%%
+sequenceDiagram
+    title 時序圖 5/7 — 心跳安全機制
+    %% 說明：Cockpit 每秒發送 heartbeat（reliable=false）經 LiveKit DataChannel 至
+    %%       Edge Agent 與 R2 Bridge。Edge Agent 每 500ms 檢查心跳新鮮度，
+    %%       R2 Bridge watchdog 每 500ms 檢查 3 秒超時。任一方超時即觸發安全模式。
+    %% 關鍵：Edge Agent 超時 → 停止 Go Publisher + 進入 safe_mode
+    %%       R2 Bridge 超時 → 發布 ROS2 /rvep/emergency_stop (Twist zero)
+
+    participant O as "操作員\nOperator"
+    participant CP as "Web Cockpit\n(Next.js 3011)"
+    participant LK as "LiveKit SFU\n(v1.7.2)"
+    participant EA as "Edge Agent\n(TypeScript)"
+    participant R2 as "R2 Bridge\n(Python ROS2)"
+
+    Note over CP,R2: 正常持續運作
+    loop 每秒 (setInterval 1000ms)
+        CP->>CP: ControlChannel.startHeartbeat()
+        CP->>LK: DataChannel publishData({type:"heartbeat"}, reliable=false)
+        LK-->>EA: Heartbeat Message
+        EA->>EA: handleCommand("heartbeat") → reset lastHeartbeatAt
+        LK-->>R2: Heartbeat Message
+        R2->>R2: watchdog.beat() → reset 3s timer
+    end
+
+    Note over EA: Agent Heartbeat Watcher (每 500ms 檢查)
+    Note over R2: Watchdog (每 500ms 檢查)

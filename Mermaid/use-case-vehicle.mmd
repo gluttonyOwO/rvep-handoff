@@ -1,0 +1,13 @@
+%%{init: {"theme": "dark"}}%%
+flowchart TD
+  %% 使用案例圖 — 車輛 ROS2 Vehicle
+
+  subgraph Actor["參與者 Actor"]
+    VHCL["🚗 車輛 ROS2 Vehicle"]
+  end
+
+  subgraph System["RVEP 系統"]
+    UC15["UC15 執行控制命令 Execute Control Cmd"]
+  end
+
+  VHCL --> UC15

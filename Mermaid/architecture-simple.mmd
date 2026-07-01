@@ -1,0 +1,49 @@
+%%{init: {"theme": "dark", "themeVariables": {"c4BoundaryBackground": "#2d2d2d", "c4PersonBackground": "#5D9CEC", "c4PersonBorder": "#4A90D9", "c4SystemBackground": "#3a3f5c", "c4SystemBorder": "#4A90D9", "c4SystemDbBackground": "#2d4a3e", "c4SystemDbBorder": "#3cb371"}}}%%
+C4Context
+title Simplified System Architecture — 依專案分類
+
+Person(operator, "操作員 Operator", "瀏覽器操控車輛")
+Person(admin, "管理員 Admin", "系統管理")
+Person(viewer, "觀察者 Viewer", "唯讀監看")
+
+System_Boundary(frontend, "apps/web/ — 前端駕駛艙") {
+    System(cockpit, "Web Cockpit", "Next.js 15 / React 19\nTailwind / Zustand / Port 3011", "車隊儀表板、Joystick、\nTelemetry HUD、Safety 警示\nAdmin 後台")
+}
+
+System_Boundary(backend, "apps/backend/ — 後端 API") {
+    System(api, "Backend API", "Next.js 15 / Prisma / Zod\nPort 3010", "REST API：認證 / 車輛\n租約 / 權限 / 稽核")
+    SystemDb(db, "PostgreSQL 16", "Prisma ORM\nPort 5432", "關聯式資料庫\n(User / Vehicle / Session\nLease / Telemetry / Log)")
+    System(lk, "LiveKit SFU", "v1.7.2\nPort 7880", "WebRTC SFU\n(H.264 影片 + DataChannel)")
+}
+
+System_Boundary(edge, "apps/mock-edge/ + apps/edge-publisher-go/ — 邊緣裝置") {
+    System(agent, "Edge Agent", "TypeScript / Node.js\n@livekit/rtc-node", "心跳安全 / Telemetry 5Hz\nIPC 管理 Publisher\nInternal API 回報")
+    System(pub, "Go Publisher", "Go 1.22 + GStreamer\n+ NVENC H.264", "ZED-X 相機\n硬體編碼→ LiveKit")
+}
+
+System_Boundary(vehicle, "apps/r2-bridge/ — 車輛橋接") {
+    System(bridge, "R2 Bridge", "Python 3 + rclpy\nROS2 Jazzy", "DataChannel→ROS2\nWatchdog / Telemetry")
+    System(ros, "ROS2 Vehicle", "Wheeltec AMR\ngeometry_msgs/Twist", "底層馬達控制\nodom / IMU 回授")
+}
+
+Rel(operator, cockpit, "駕駛艙操作", "WebRTC + HTTPS")
+Rel(admin, cockpit, "管理後台", "HTTPS")
+Rel(viewer, cockpit, "唯讀監看", "HTTPS")
+
+Rel(cockpit, api, "REST API 呼叫", "HTTP JSON (3010)")
+Rel(cockpit, lk, "命令 / 心跳 / 影音", "LiveKit SDK (7880)")
+
+Rel(api, db, "Prisma ORM", "PostgreSQL (5432)")
+Rel(api, lk, "Token / Room 管理", "LiveKit Server API")
+
+Rel(agent, lk, "收命令 / 發佈 Telemetry", "DataChannel")
+Rel(agent, api, "回報取樣 / 事件 / 資料集", "HTTP Internal API")
+Rel(agent, pub, "IPC 管理", "Unix Socket")
+
+Rel(pub, lk, "H.264 影片串流", "WebRTC Publish")
+
+Rel(bridge, lk, "訂閱命令 / 發佈 Telemetry", "DataChannel")
+Rel(bridge, ros, "cmd_vel → 馬達", "ROS2 /rvep/cmd_vel")
+Rel(ros, bridge, "odom / IMU / Battery", "ROS2 Topics")
+
+UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="2")

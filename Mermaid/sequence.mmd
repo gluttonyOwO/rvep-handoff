@@ -1,0 +1,95 @@
+%%{init: {"theme": "base", "themeVariables": {"background": "#FFF9C4", "primaryColor": "#1565C0", "primaryTextColor": "#FFFFFF", "primaryBorderColor": "#0D47A1", "lineColor": "#1A237E", "secondaryColor": "#E3F2FD", "tertiaryColor": "#BBDEFB", "actorBorder": "#0D47A1", "actorBkg": "#1565C0", "actorTextColor": "#FFFFFF", "actorLineColor": "#0D47A1", "signalColor": "#1A237E", "signalTextColor": "#1A237E", "signalLineColor": "#1A237E", "noteBkgColor": "#FFF176", "noteBorderColor": "#F9A825", "noteTextColor": "#1A237E", "loopBorderColor": "#1565C0", "loopBkgColor": "#E3F2FD", "loopTextColor": "#0D47A1", "activationBorderColor": "#1565C0", "activationBkgColor": "#BBDEFB", "sequenceNumberColor": "#1A237E"}}}%%
+sequenceDiagram
+    title 時序圖 — 操作員完整操控流程
+
+    participant O as "操作員\nOperator"
+    participant CP as "Web Cockpit\n(Next.js 3011)"
+    participant API as "Backend API\n(Next.js 3010)"
+    participant DB as "PostgreSQL\nDatabase"
+    participant LK as "LiveKit SFU\n(v1.7.2)"
+    participant EA as "Edge Agent\n(TypeScript)"
+    participant GP as "Go Publisher\n(GStreamer)"
+    participant R2 as "R2 Bridge\n(Python ROS2)"
+    participant VH as "ROS2 Vehicle\n(Wheeltec AMR)"
+
+    Note over O,VH: 階段 1 — 認證與車輛列表
+    O->>CP: 輸入 Email / Password
+    CP->>API: POST /api/v1/auth/login
+    API->>DB: 查詢 User + 驗證密碼
+    DB-->>API: 使用者資料
+    API-->>CP: 回傳 Access Token + Refresh Cookie
+    CP->>API: GET /api/v1/vehicles (Bearer Token)
+    API->>DB: 查詢 VehiclePermission
+    DB-->>API: 權限資料
+    API-->>CP: 車輛列表 (含狀態)
+    CP-->>O: 顯示車隊儀表板
+
+    Note over O,VH: 階段 2 — 獲取控制租約
+    O->>CP: 選擇車輛「AMR-01」
+    CP->>API: POST /api/v1/vehicles/vehicle-001/control-lease/claim
+    API->>DB: 建立 ControlLease (ACTIVE, 30min TTL)
+    DB-->>API: Lease Created
+    API-->>CP: Lease Claimed
+    CP->>API: POST /api/v1/livekit/token
+    API->>LK: 產生 Room Token (role: operator)
+    LK-->>API: Token
+    API-->>CP: LiveKit Token + Room 資訊
+
+    Note over O,VH: 階段 3 — 連線 LiveKit 與串流
+    CP->>LK: 加入 Room (WebRTC Subscribe Video + DataChannel)
+    EA->>LK: 已存在 Room 中 (Edge Agent Participant)
+    EA->>GP: IPC: start (LiveKit Token)
+    activate GP
+    GP->>GP: GStreamer NVENC H.264 編碼
+    GP->>LK: 發佈 Video Track (ZED-X Front)
+    LK-->>CP: 接收 Video Track → 渲染 <video>
+    CP-->>O: 顯示雙路即時影像
+    deactivate GP
+
+    Note over O,VH: 階段 4 — 控制命令與 Telemetry
+    O->>CP: 拖曳 Joystick (前進 0.5, 左轉 0.3)
+    CP->>CP: encodeCommand(movement)
+    CP->>LK: DataChannel Publish (ControlCommand)
+    LK-->>EA: DataChannel Message
+    EA-->>LK: (relay 控制命令至 R2 Bridge)
+    LK-->>R2: DataChannel Message
+    R2->>R2: decodeCommand → ROS2 cmd_vel
+    R2->>VH: ROS2 /rvep/cmd_vel (linear.x: 0.5, angular.z: 0.3)
+    VH-->>R2: ROS2 /odom, /IMU, /Battery
+    R2->>R2: encodeTelemetry(odom, imu, battery)
+    R2->>LK: DataChannel Publish (Telemetry)
+    LK-->>CP: DataChannel Message (Telemetry)
+    CP->>CP: decodeTelemetry → TelemetryHUD
+    CP-->>O: 更新 HUD (速度、電量、GPS)
+
+    Note over O,VH: 階段 5 — 心跳安全機制 (持續)
+    loop 每秒
+        CP->>LK: DataChannel Publish (heartbeat)
+        LK-->>EA: Heartbeat Received
+        EA->>EA: 重置 3 秒超時計時器
+    end
+
+    Note over O,VH: 階段 6 — 異常場景：心跳超時
+    CP-xLK: 心跳中斷（網路不穩）
+    EA->>EA: 3 秒超時 → 進入 Safe Mode
+    EA->>GP: IPC: stop (reason: safe_mode)
+    GP->>LK: 停止 Video Track
+    EA->>LK: DataChannel Publish (SafetyEvent: safe_mode_entered)
+    LK-->>CP: SafetyEvent Received
+    CP-->>O: SafetyBanner 顯示 + 禁用 Joystick
+    O->>CP: 確認安全狀態 → 點擊「恢復控制」
+    CP->>LK: DataChannel Publish (resume_control with acknowledgement)
+    LK-->>EA: ResumeControlCommand
+    EA->>EA: 離開 Safe Mode
+    EA->>GP: IPC: start (恢復串流)
+    EA->>LK: DataChannel Publish (SafetyEvent: safe_mode_left)
+    LK-->>CP: 恢復正常操作
+
+    Note over O,VH: 階段 7 — 釋放控制
+    O->>CP: 離開駕駛艙
+    CP->>API: POST /api/v1/vehicles/vehicle-001/control-lease/release
+    API->>DB: 更新 Lease Status → RELEASED
+    DB-->>API: Done
+    API-->>CP: Lease Released
+    CP->>LK: 離開 LiveKit Room
+    LK-->>EA: 收到 Room 空閒通知

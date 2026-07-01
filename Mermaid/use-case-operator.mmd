@@ -1,0 +1,27 @@
+%%{init: {"theme": "dark"}}%%
+flowchart TD
+  %% 使用案例圖 — 操作員 Operator
+
+  subgraph Actor["參與者 Actor"]
+    OPER["👤 操作員 Operator"]
+  end
+
+  subgraph System["RVEP 系統"]
+    UC1["UC1 登入系統 Login"]
+    UC2["UC2 檢視車隊 View Fleet"]
+    UC3["UC3 獲取控制權 Claim Lease"]
+    UC4["UC4 操作車輛 Control Vehicle"]
+    UC5["UC5 緊急停止 Emergency Stop"]
+    UC6["UC6 監看 Telemetry Monitor Telemetry"]
+    UC7["UC7 心跳監控 Heartbeat Safety"]
+    UC8["UC8 安全模式恢復 Recover Safe Mode"]
+  end
+
+  OPER --> UC1
+  OPER --> UC2
+  OPER --> UC3
+  OPER --> UC4
+  OPER --> UC5
+  OPER --> UC6
+  OPER --> UC7
+  OPER --> UC8

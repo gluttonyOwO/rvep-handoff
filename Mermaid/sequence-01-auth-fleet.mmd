@@ -1,0 +1,22 @@
+%%{init: {"theme": "base", "themeVariables": {"background": "#FFF9C4", "primaryColor": "#1565C0", "primaryTextColor": "#FFFFFF", "primaryBorderColor": "#0D47A1", "lineColor": "#1A237E", "secondaryColor": "#E3F2FD", "tertiaryColor": "#BBDEFB", "actorBorder": "#0D47A1", "actorBkg": "#1565C0", "actorTextColor": "#FFFFFF", "actorLineColor": "#0D47A1", "signalColor": "#1A237E", "signalTextColor": "#1A237E", "signalLineColor": "#1A237E", "noteBkgColor": "#FFF176", "noteBorderColor": "#F9A825", "noteTextColor": "#1A237E", "loopBorderColor": "#1565C0", "loopBkgColor": "#E3F2FD", "loopTextColor": "#0D47A1", "activationBorderColor": "#1565C0", "activationBkgColor": "#BBDEFB", "sequenceNumberColor": "#1A237E"}}}%%
+sequenceDiagram
+    title 時序圖 1/7 — 認證與車輛列表
+    %% 說明：Operator 登入取得 JWT Token，再用 Token 取得其有權限的車輛列表。
+    %% 流程：輸入憑證 → POST login → 後端驗證 bcrypt → 回傳 Access Token + Refresh Cookie
+    %%       → GET /vehicles（攜帶 Bearer Token）→ 查詢 VehiclePermission → 回傳車輛列表
+
+    participant O as "操作員\nOperator"
+    participant CP as "Web Cockpit\n(Next.js 3011)"
+    participant API as "Backend API\n(Next.js 3010)"
+    participant DB as "PostgreSQL\nDatabase"
+
+    O->>CP: 輸入 Email / Password
+    CP->>API: POST /api/v1/auth/login
+    API->>DB: 查詢 User + 驗證密碼 (bcrypt)
+    DB-->>API: 使用者資料
+    API-->>CP: 回傳 Access Token + Refresh Cookie (SameSite=strict)
+    CP->>API: GET /api/v1/vehicles (Bearer Token)
+    API->>DB: 查詢 VehiclePermission + 車輛列表
+    DB-->>API: 權限資料
+    API-->>CP: 車輛列表 (vehicleId/displayName/type/status)
+    CP-->>O: 顯示車隊儀表板

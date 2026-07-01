@@ -1,0 +1,21 @@
+{
+  "theme": "base",
+  "themeVariables": {
+    "background": "#FFF9C4",
+    "primaryColor": "#1565C0",
+    "primaryTextColor": "#FFFFFF",
+    "primaryBorderColor": "#0D47A1",
+    "lineColor": "#0D47A1",
+    "secondaryColor": "#1E88E5",
+    "tertiaryColor": "#1565C0",
+    "entityBorderColor": "#0D47A1",
+    "entityBkgColor": "#1565C0",
+    "entityTextColor": "#FFFFFF",
+    "attributeBorderColor": "#0D47A1",
+    "attributeBkgColor": "#1E88E5",
+    "attributeTextColor": "#FFFFFF",
+    "relationshipColor": "#0D47A1",
+    "relationshipTextColor": "#0D47A1"
+  },
+  "themeCSS": ".nodeLabel p { font-size: 24px !important; } .edgeLabel p { font-size: 18px !important; } .row-rect-odd path:first-child { fill: #42A5F5 !important; }"
+}
