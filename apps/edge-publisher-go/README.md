@@ -75,6 +75,36 @@ RVEP_SOCKET_PATH=/tmp/test-publisher-front.sock \
 {"type":"start","ts":"2026-05-17T00:00:00.000Z","seq":1,"livekitUrl":"ws://192.168.68.68:7880","livekitToken":"<JWT>","roomName":"ugv-vehicle-001","identity":"edge-front","videoProfileId":"zed-x-front-1080p30","pipelineOverride":null}
 ```
 
+### Direct mode (USB camera / no IPC)
+
+For quick bring-up with a V4L2 camera, the publisher can also mint its own
+token and connect directly when `RVEP_SOCKET_PATH` / `RVEP_CAMERA_PROFILE` are
+unset.
+
+```bash
+cd apps/edge-publisher-go
+
+LIVEKIT_URL=ws://the_domain.ip:7880 \
+LIVEKIT_API_KEY=devkey \
+LIVEKIT_API_SECRET=devsecret \
+ROOM=ugv-vehicle-001 \
+IDENTITY=r2-camera \
+DEVICE=/dev/video0 \
+FPS=30 \
+BITRATE=1000 \
+go run ./cmd/publisher
+```
+
+This direct mode uses a default pipeline equivalent to:
+
+```text
+v4l2src -> videorate -> videoconvert -> x264enc -> h264parse -> appsink
+```
+
+If your camera needs explicit caps or a custom source chain, set
+`GSTREAMER_PIPELINE` to a full pipeline string that ends with
+`appsink name=sink`.
+
 ---
 
 ## Unit Tests

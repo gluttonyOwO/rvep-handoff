@@ -40,18 +40,26 @@ const (
 )
 
 func main() {
-	// ── 1. Read required env vars ────────────────────────────────────────────
 	socketPath := os.Getenv("RVEP_SOCKET_PATH")
-	if socketPath == "" {
-		fatal("RVEP_SOCKET_PATH is not set")
-	}
-
 	profilePath := os.Getenv("RVEP_CAMERA_PROFILE")
-	if profilePath == "" {
-		fatal("RVEP_CAMERA_PROFILE is not set")
+	switch {
+	case socketPath != "" || profilePath != "":
+		if socketPath == "" {
+			fatal("RVEP_SOCKET_PATH is not set")
+		}
+		if profilePath == "" {
+			fatal("RVEP_CAMERA_PROFILE is not set")
+		}
+		runIPCMode(socketPath, profilePath)
+	case shouldUseDirectMode():
+		runDirectMode()
+	default:
+		fatal("set RVEP_SOCKET_PATH+RVEP_CAMERA_PROFILE for agent mode, or LIVEKIT_URL+LIVEKIT_API_KEY+LIVEKIT_API_SECRET+ROOM for direct mode")
 	}
+}
 
-	// ── 2. Load camera profile YAML ─────────────────────────────────────────
+func runIPCMode(socketPath, profilePath string) {
+	// ── 1. Load camera profile YAML ─────────────────────────────────────────
 	profile, err := config.LoadProfile(profilePath)
 	if err != nil {
 		fatal("load camera profile: %v", err)
@@ -60,14 +68,14 @@ func main() {
 	logf("loaded profile: cameraId=%s sensorId=%d identity=%s",
 		profile.CameraID, profile.SensorID, profile.Identity)
 
-	// ── 3. Root context with signal handling ─────────────────────────────────
+	// ── 2. Root context with signal handling ─────────────────────────────────
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 
-	// ── 4. Panic recovery → IPC error + graceful exit ────────────────────────
+	// ── 3. Panic recovery → IPC error + graceful exit ────────────────────────
 	// The goroutine below is the real main; this wrapper catches panics.
 	var ipcConn *ipc.Conn
 	var ipcMu sync.Mutex // guards ipcConn pointer during setup
@@ -89,7 +97,7 @@ func main() {
 		}
 	}()
 
-	// ── 5. Connect to Edge Agent Unix socket ─────────────────────────────────
+	// ── 4. Connect to Edge Agent Unix socket ─────────────────────────────────
 	logf("dialing unix socket: %s", socketPath)
 	conn, err := ipc.Dial(ctx, socketPath)
 	if err != nil {
@@ -101,13 +109,13 @@ func main() {
 	ipcConn = conn
 	ipcMu.Unlock()
 
-	// ── 6. Send hello ────────────────────────────────────────────────────────
+	// ── 5. Send hello ────────────────────────────────────────────────────────
 	if err := conn.SendHello(profile.CameraID, platformID, version, os.Getpid()); err != nil {
 		fatal("send hello: %v", err)
 	}
 	logf("sent hello; waiting for start…")
 
-	// ── 7. Wait for start (with signal / context cancellation) ───────────────
+	// ── 6. Wait for start (with signal / context cancellation) ───────────────
 	startCtx, startCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer startCancel()
 
@@ -150,7 +158,7 @@ func main() {
 	}
 	logf("pipeline: %s", summarizePipeline(pipelineStr))
 
-	// ── 8. Create GStreamer pipeline ──────────────────────────────────────────
+	// ── 7. Create GStreamer pipeline ──────────────────────────────────────────
 	pipe, err := gst.NewPipeline(pipelineStr)
 	if err != nil {
 		_ = conn.SendError(ipc.ErrGstPipelineFailed,
@@ -165,7 +173,7 @@ func main() {
 	}
 	logf("GStreamer pipeline started")
 
-	// ── 9. Connect to Livekit ────────────────────────────────────────────────
+	// ── 8. Connect to Livekit ────────────────────────────────────────────────
 	pub := publisher.New()
 
 	livekitURL := startMsg.LivekitURL
@@ -186,7 +194,7 @@ func main() {
 	}
 	logf("connected to Livekit room %q as %q", roomName, identity)
 
-	// ── 10. State tracking for heartbeat ─────────────────────────────────────
+	// ── 9. State tracking for heartbeat ──────────────────────────────────────
 	state := ipc.StatePublishing
 	publishErrCh := make(chan error, 1)
 
@@ -195,7 +203,7 @@ func main() {
 		publishErrCh <- err
 	}()
 
-	// ── 11. Heartbeat loop (1 Hz) ─────────────────────────────────────────────
+	// ── 10. Heartbeat loop (1 Hz) ────────────────────────────────────────────
 	go conn.HeartbeatLoop(ctx, 1*time.Second, &state, func() ipc.HeartbeatMetrics {
 		return ipc.HeartbeatMetrics{
 			FramesPublished: pub.FramesPublished(),
@@ -205,7 +213,7 @@ func main() {
 		}
 	})
 
-	// ── 12. Main event loop ───────────────────────────────────────────────────
+	// ── 11. Main event loop ──────────────────────────────────────────────────
 	select {
 	case sig := <-sigCh:
 		logf("received signal %v; shutting down", sig)
@@ -227,7 +235,7 @@ func main() {
 		logf("context done; shutting down")
 	}
 
-	// ── 13. Graceful shutdown ─────────────────────────────────────────────────
+	// ── 12. Graceful shutdown ────────────────────────────────────────────────
 	logf("stopping GStreamer pipeline…")
 	cancel() // signal all goroutines to stop
 	pipe.Stop()
@@ -262,4 +270,3 @@ func summarizePipeline(s string) string {
 	}
 	return s
 }
-
