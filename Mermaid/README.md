@@ -20,6 +20,8 @@
 5. [通訊流程圖](#5-通訊流程圖)
 6. [時序圖](#6-時序圖)
 7. [介面規格總覽](#7-介面規格總覽)
+   - 7.9 [控制命令 API 與 ROS2 傳輸格式](#79-控制命令-api-與-ros2-傳輸格式)
+   - 7.10 [mock-edge 通訊格式與方法](#710-mock-edge-通訊格式與方法)
 8. [產生 Mermaid 圖片的步驟](#8-產生-mermaid-圖片的步驟)
 9. [已知問題與注意事項 Known Issues](#9-已知問題與注意事項-known-issues)
    - 9.1 [架構正確性](#91-架構正確性)
@@ -1167,6 +1169,118 @@ LiveKit SFU (forward)
 兩個接收端（Edge Agent + R2 Bridge）對 `movement` 的處理方式不同：
 - **Edge Agent**：部分實作（mock）只將速度參數傳遞給 Go Publisher 用於 FPV 模擬（非實際馬達控制）
 - **R2 Bridge**：實際轉譯為 ROS2 Twist 發佈至車輛底盤
+
+### 7.10 mock-edge 通訊格式與方法
+
+#### 7.10.1 角色定位
+
+mock-edge 是一個 **TypeScript/Node.js** 開發用模擬器，模擬正式 Edge Agent 的行為。它透過 LiveKit DataChannel 與 Cockpit 雙向通訊，並可選地啟動 Go Publisher 進行影片串流。未來需將此處的假資料替換為真實 ROS2 數值。
+
+#### 7.10.2 mock-edge 通訊方式總覽
+
+| 方向 | 協定 | 傳輸 | 頻率 | 資料 |
+|------|------|------|------|------|
+| Cockpit → mock-edge | LiveKit DataChannel (topic: `control`) | SCTP (reliable/unreliable) | 事件驅動 | ControlCommand（movement/heartbeat/resume_control 等） |
+| mock-edge → Cockpit | LiveKit DataChannel (topic: `telemetry`) | SCTP (reliable) | 5Hz | TelemetryMessage（GPS/IMU/Battery/Network/VehicleStatus） |
+| mock-edge → Cockpit | LiveKit DataChannel (topic: `control`) | SCTP (reliable) | 事件驅動 | SafetyEvent（safe_mode_entered/left） |
+| mock-edge ↔ Go Publisher | Unix Domain Socket（JSON Lines） | IPC | 1Hz heartbeat + 事件 | start/stop/hello/heartbeat/error |
+| mock-edge → Backend | HTTP REST | TCP :3010 | 1Hz (audit) | POST /internal/telemetry-frame（x-internal-token） |
+
+#### 7.10.3 TelemetryMessage 完整格式（mock-edge 發出）
+
+由 `apps/mock-edge/src/telemetry-publisher.ts` 以 5Hz 發布至 DataChannel topic `"telemetry"`，使用 `encodeTelemetry()` 編碼為 JSON Uint8Array。
+
+**根結構：**
+
+```json
+{
+  "kind": "telemetry",
+  "v": 1,
+  "ts": 1719715200000,
+  "vehicleId": "vehicle-001",
+  "sessionId": "ses_abc123",
+  "seq": 42,
+  "gps": { ... },
+  "imu": { ... },
+  "battery": { ... },
+  "network": { ... },
+  "vehicle": { ... }
+}
+```
+
+**各子物件欄位：**
+
+| 路徑 | 類型 | 說明 | mock-edge 目前值 |
+|------|------|------|-----------------|
+| `gps.lat` | `number` | 緯度 (WGS84) | 25.03386 ± 隨機漫步（Taipei 101） |
+| `gps.lng` | `number` | 經度 (WGS84) | 121.56455 ± 隨機漫步 |
+| `gps.altM` | `number` | 海拔（米） | 12 + sin(elapsed) * 2 |
+| `gps.hAccM` | `number` | 水平精度（米） | 1.4（固定值） |
+| `gps.speedMs` | `number` | 對地速度（m/s） | 1.2 + sin(elapsed/5) * 0.8 |
+| `gps.headingDeg` | `number` | 航向角（度） | 87° ± 隨機漂移 |
+| `gps.fix` | `"3d"\|"2d"\|"none"` | GPS fix 狀態 | `"3d"`（固定值） |
+| `imu.ax` | `number` | 加速度 X (m/s²) | `Math.random()` ±0.4 |
+| `imu.ay` | `number` | 加速度 Y (m/s²) | `Math.random()` ±0.4 |
+| `imu.az` | `number` | 加速度 Z (m/s²) | 9.81 ± 0.2（重力常數） |
+| `imu.gx` | `number` | 角速度 X (rad/s) | `Math.random()` ±0.05 |
+| `imu.gy` | `number` | 角速度 Y (rad/s) | `Math.random()` ±0.05 |
+| `imu.gz` | `number` | 角速度 Z (rad/s) | `Math.random()` ±0.05 |
+| `battery.pct` | `number` | 電量百分比 | 78% - elapsed/120（每分鐘降 0.5%） |
+| `battery.voltage` | `number` | 電壓 (V) | 22 + (pct / 100) * 4 |
+| `battery.currentA` | `number` | 電流 (A) | -2.1（固定放電） |
+| `battery.tempC` | `number` | 溫度 (°C) | 32 + sin(elapsed/20) * 2 |
+| `battery.mode` | `"charging"\|"discharging"\|"idle"` | 充電狀態 | `"discharging"`（固定值） |
+| `network.rttMs` | `number` | RTT 延遲 (ms) | 22 ± 18（隨機） |
+| `network.jitterMs` | `number` | 抖動 (ms) | 1 ± 3（隨機） |
+| `network.lossPct` | `number` | 封包遺失率 (%) | 10% 機率 0~0.5%，否則 0 |
+| `network.kbpsUp` | `number` | 上傳頻寬 (kbps) | 4200 ± 400 |
+| `network.kbpsDown` | `number` | 下載頻寬 (kbps) | 100 ± 50 |
+| `vehicle.mode` | `"safe"\|"active"\|"shutdown"` | 車輛安全模式 | 來自 getVehicleStatus() |
+| `vehicle.leaseHolder` | `string\|null` | 租約持有者 identity | 來自 getVehicleStatus() |
+
+#### 7.10.4 mock-edge 接收 ControlCommand 處理
+
+mock-edge 透過 `src/index.ts` 的 `decodeCommand()` 解析收到的 DataChannel 訊息，依 `type` 分派：
+
+| 命令 type | 處理函式 | 目前行為（mock） | 未來應改為（ROS2） |
+|-----------|----------|-----------------|-------------------|
+| `movement` | `handleMovementCommand()` | 僅 `console.log` + 傳遞至 Go Publisher IPC | 發布 `geometry_msgs/Twist` 至 `/rvep/cmd_vel` |
+| `emergency_stop` | `handleEmergencyStop()` | 進入 safe_mode + IPC stop + 廣播 SafetyEvent | 同上 + 發布 Twist zero 至 `/rvep/emergency_stop` |
+| `heartbeat` | `handleHeartbeat()` | 重置 `lastHeartbeatAt` | 不變（心跳邏輯正確） |
+| `resume_control` | `handleResumeControl()` | 檢查心跳新鮮度 → leaveSafeMode() | 不變（安全邏輯正確） |
+
+#### 7.10.5 SafetyEvent 格式（mock-edge → Cockpit）
+
+```json
+{
+  "kind": "safety_event",
+  "event": "safe_mode_entered",
+  "vehicleId": "vehicle-001",
+  "sessionId": "ses_abc123",
+  "ts": 1719715200000,
+  "reason": "heartbeat_timeout",
+  "details": {}
+}
+```
+
+`event` 值：`"safe_mode_entered"` / `"safe_mode_left"` / `"safe_mode_failed"`
+
+#### 7.10.6 未來替換 ROS2 真實資料流程
+
+要讓 mock-edge 讀取真實 ROS2 數值並回傳至介面，需：
+
+1. **新增 ROS2 subscriber**（使用 `rclnodejs` 或 process 通訊）：
+   - 訂閱 `/odom` → 提取 velocity/pose → 填入 `gps.speedMs`、`gps.headingDeg`
+   - 訂閱 `/robot/PowerValtage` → 計算 battery %
+   - 訂閱 `/mobile_base/sensors/imu_data` → 填入 `imu.ax/ay/az/gx/gy/gz`
+
+2. **替換 mock state**：將 `composeMessage()` 中的 `Math.random()` 改為 ROS2 callback 快取值
+
+3. **新增 ROS2 publisher**：
+   - 收到 `movement` command → 發布 `geometry_msgs/Twist` 至 `/rvep/cmd_vel`
+   - 收到 `emergency_stop` → 發布 `Twist()` zero 至 `/rvep/emergency_stop`
+
+4. **保留 mock mode 開關**：透過環境變數 `ROS2_ENABLED=false/true` 切換，讓無 ROS2 環境仍可開發
 
 ---
 
