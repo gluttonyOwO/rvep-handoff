@@ -7,7 +7,7 @@ graph TB
   %%   Web 前端 (3011) — Operator Cockpit：Joystick 控制 + Telemetry HUD + Safety 顯示
   %%   後端 API (3010) — REST API：JWT Auth + Prisma ORM + PostgreSQL
   %%   LiveKit SFU (7880) — WebRTC SFU：雙向 DataChannel + H.264 Video Tracks
-  %%   邊緣裝置 (AGX Orin) — Go Publisher（NVENC 編碼）+ Edge Agent（IPC Server + Telemetry 5Hz）
+  %%   邊緣裝置 (Jetson) — Go Publisher（NVENC 編碼）+ Edge Agent（IPC Server + Telemetry 5Hz）
   %%   車輛層 — R2 Bridge（Python ROS2 橋接）+ ROS2 Vehicle（cmd_vel / odom / IMU）
   %%
   %% 通訊協定：
@@ -48,7 +48,7 @@ graph TB
     NVENC 編碼"]
   end
 
-  subgraph Edge_Device ["邊緣裝置 (AGX Orin)"]
+  subgraph Edge_Device ["邊緣裝置 (Jetson)"]
     subgraph Go_Publisher ["Go Video Publisher"]
       GST["GStreamer Pipeline
       NVENC H.264 Encode"]
