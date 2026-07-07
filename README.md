@@ -88,6 +88,171 @@ Detailed deployment (NVENC pipeline tuning, ZED-X driver installation, GMSL2 cal
 
 ---
 
+## Production Installation (Ubuntu Server)
+
+Step-by-step guide for deploying RVEP on a fresh Ubuntu 22.04 / 24.04 server.
+
+### 1. System Dependencies
+
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y build-essential curl ca-certificates
+```
+
+### 2. Docker & Docker Compose
+
+```bash
+# Install Docker
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker $USER
+
+# Install Docker Compose Plugin (if not included)
+sudo apt install -y docker-compose-plugin
+
+# Verify
+docker --version && docker compose version
+```
+
+> ⚠️ Log out and back in for group changes to take effect, or run `newgrp docker`.
+
+### 3. Node.js 22 & pnpm
+
+```bash
+# Node.js 22 (NodeSource)
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# Verify
+node --version   # v22.x
+
+# pnpm
+corepack enable
+corepack prepare pnpm@latest --activate
+# OR: npm install -g pnpm
+
+pnpm --version   # 9.x / 10.x
+```
+
+### 4. Clone & Configure Environment
+
+```bash
+git clone https://github.com/gluttonyOwO/rvep-handoff/
+cd rvep-handoff
+
+# Copy backend environment file and fill in secrets
+cp apps/backend/.env.example apps/backend/.env
+```
+
+Edit `apps/backend/.env` and set at minimum:
+
+| Variable | Description |
+|---|---|
+| `JWT_SIGNING_KEY` | Run `openssl rand -base64 32` |
+| `JWT_REFRESH_KEY` | Run `openssl rand -base64 32` |
+| `DATABASE_URL` | Default works with the docker-compose below |
+| `LIVEKIT_URL` | `ws://localhost:7880` (default dev key) |
+
+### 5. Start Infrastructure (Docker Compose)
+
+```bash
+cd apps/backend
+docker compose -f docker-compose.dev.yml up -d
+cd ../..
+```
+
+This starts:
+- **PostgreSQL 16** on `localhost:5432`
+- **LiveKit SFU** on `localhost:7880` (WebRTC) and `3478` (TURN)
+
+### 6. Install Dependencies & Build
+
+```bash
+# Install all workspace dependencies (from repo root)
+pnpm install
+
+# Backend — generate Prisma client, run migrations, seed database
+cd apps/backend
+pnpm prisma:generate
+pnpm prisma:migrate
+pnpm build
+cd ../..
+
+# Web — build frontend
+cd apps/web
+pnpm build
+cd ../..
+```
+
+### 7. Start Services
+
+```bash
+# Terminal 1 — backend API on :3010
+cd apps/backend && pnpm start
+
+# Terminal 2 — web cockpit on :3011
+cd apps/web && pnpm start
+```
+
+### 8. Nginx Reverse Proxy (Optional)
+
+Install and configure Nginx as a reverse proxy for production:
+
+```bash
+sudo apt install -y nginx
+```
+
+Create `/etc/nginx/sites-available/rvep`:
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    # Web cockpit
+    location / {
+        proxy_pass http://127.0.0.1:3011;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Backend API
+    location /api/ {
+        proxy_pass http://127.0.0.1:3010;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # LiveKit WebSocket
+    location /livekit/ {
+        proxy_pass http://127.0.0.1:7880;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+Enable and start:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/rvep /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl restart nginx
+```
+
+> 🔐 For production, add SSL via Let's Encrypt / Certbot.
+
+---
+
 ## Hardware Targets
 
 | Platform | Status |
