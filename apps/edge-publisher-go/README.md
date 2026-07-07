@@ -81,6 +81,7 @@ For quick bring-up with a V4L2 camera, the publisher can also mint its own
 token and connect directly when `RVEP_SOCKET_PATH` / `RVEP_CAMERA_PROFILE` are
 unset.
 
+詳細更動設定:rvep-handoff/apps/edge-publisher-go/cmd/publisher/direct.go
 ```bash
 cd apps/edge-publisher-go
 
