@@ -174,7 +174,7 @@ func runIPCMode(socketPath, profilePath string) {
 	logf("GStreamer pipeline started")
 
 	// ── 8. Connect to Livekit ────────────────────────────────────────────────
-	pub := publisher.New()
+	pub := publisher.New(profile.VideoProfile.Framerate)
 
 	livekitURL := startMsg.LivekitURL
 	token := startMsg.LivekitToken

@@ -3,7 +3,7 @@
 //
 // Workflow:
 //
-//	p := publisher.New()
+//	p := publisher.New(30)
 //	err := p.Connect(ctx, livekitURL, token, identity)
 //	defer p.Disconnect()
 //	go p.PublishLoop(ctx, samplesCh, livekitURL, token, identity)
@@ -39,11 +39,15 @@ type Publisher struct {
 
 	framesPublished int64
 	framesDropped   int64
+	sampleDuration  time.Duration
 }
 
-// New creates an uninitialised Publisher.  Call Connect before PublishLoop.
-func New() *Publisher {
-	return &Publisher{}
+const defaultSampleDuration = 33 * time.Millisecond
+
+// New creates an uninitialised Publisher. Call Connect before PublishLoop.
+// fps controls the RTP sample duration used for each written frame.
+func New(fps int) *Publisher {
+	return &Publisher{sampleDuration: sampleDurationForFPS(fps)}
 }
 
 // FramesPublished returns the number of frames successfully written.
@@ -75,12 +79,11 @@ func (p *Publisher) Connect(ctx context.Context, livekitURL, token, identity str
 	track, err := lksdk.NewLocalSampleTrack(webrtc.RTPCodecCapability{
 		MimeType:  webrtc.MimeTypeH264,
 		ClockRate: 90000,
-		// profile-level-id=42c028 → Baseline Profile, Level 4.0.
-		// Level 3.1 (42e01f) is insufficient for 1080p30 (MaxDPB / MaxMBPS
-		// exceeded); some browser H.264 decoders silently drop frames or
-		// reject the track entirely if the announced level is too low for
-		// the actual bitstream — see slice-9.5 diagnostic notes.
-		SDPFmtpLine: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42c028",
+		// profile-level-id=42c032 → constrained baseline, level 5.0.
+		// The direct Jetson pipeline can publish 1920x1536@30, which exceeds the
+		// frame-size / macroblock limits of level 4.0. Advertising level 5.0 keeps
+		// the SDP consistent with the encoder output negotiated by h264parse.
+		SDPFmtpLine: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42c032",
 	})
 	if err != nil {
 		room.Disconnect()
@@ -151,15 +154,15 @@ func (p *Publisher) publishUntilDisconnect(ctx context.Context, samplesCh <-chan
 			if !ok {
 				return nil
 			}
-			annexB, err := h264.AVCCToAnnexB(s.Data)
+			annexB, err := h264.ToAnnexB(s.Data)
 			if err != nil {
 				atomic.AddInt64(&p.framesDropped, 1)
-				fmt.Printf("publisher: AVCC→AnnexB error (dropping frame): %v\n", err)
+				fmt.Printf("publisher: normalize H.264 sample to Annex B failed (dropping frame): %v\n", err)
 				continue
 			}
 			if err := p.track.WriteSample(media.Sample{
 				Data:     annexB,
-				Duration: 33 * time.Millisecond,
+				Duration: p.sampleDuration,
 			}, nil); err != nil {
 				atomic.AddInt64(&p.framesDropped, 1)
 				return fmt.Errorf("publisher: WriteSample: %w", err)
@@ -167,4 +170,11 @@ func (p *Publisher) publishUntilDisconnect(ctx context.Context, samplesCh <-chan
 			atomic.AddInt64(&p.framesPublished, 1)
 		}
 	}
+}
+
+func sampleDurationForFPS(fps int) time.Duration {
+	if fps <= 0 {
+		return defaultSampleDuration
+	}
+	return time.Second / time.Duration(fps)
 }

@@ -74,8 +74,8 @@ func TestIDRFrameWithSPSAndPPS(t *testing.T) {
 	// Simulate what nvv4l2h264enc + insert-sps-pps=true produces:
 	// [SPS][PPS][IDR slice] as a single AVCC AU.
 	spsNALU := []byte{0x67, 0x64, 0x00, 0x1F, 0xAC, 0xD9} // type 7
-	ppsNALU := []byte{0x68, 0xEB, 0xEC, 0xB2, 0x2C}        // type 8
-	idrNALU := []byte{0x65, 0x88, 0x84, 0x00, 0x33}        // type 5
+	ppsNALU := []byte{0x68, 0xEB, 0xEC, 0xB2, 0x2C}       // type 8
+	idrNALU := []byte{0x65, 0x88, 0x84, 0x00, 0x33}       // type 5
 
 	var avcc []byte
 	avcc = append(avcc, avccFragment(spsNALU)...)
@@ -139,6 +139,53 @@ func TestEmptyBuffer(t *testing.T) {
 	_, err = AVCCToAnnexB([]byte{})
 	if err == nil {
 		t.Error("expected error for empty input, got nil")
+	}
+}
+
+func TestToAnnexBPassesThroughAnnexB(t *testing.T) {
+	annexB := annexBExpected(
+		[]byte{0x67, 0x42, 0xC0, 0x32},
+		[]byte{0x68, 0xCE, 0x06, 0xE2},
+		[]byte{0x65, 0x88, 0x84, 0x21},
+	)
+
+	got, err := ToAnnexB(annexB)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !bytes.Equal(got, annexB) {
+		t.Fatalf("Annex B passthrough mismatch\n got:  %X\n want: %X", got, annexB)
+	}
+	if len(got) > 0 && &got[0] == &annexB[0] {
+		t.Fatal("expected ToAnnexB to return a copy for Annex B input")
+	}
+}
+
+func TestToAnnexBPassesThroughThreeByteStartCode(t *testing.T) {
+	annexB := []byte{
+		0x00, 0x00, 0x01, 0x67, 0x42, 0xC0, 0x32,
+		0x00, 0x00, 0x01, 0x68, 0xCE, 0x06, 0xE2,
+		0x00, 0x00, 0x01, 0x65, 0x88, 0x84, 0x21,
+	}
+
+	got, err := ToAnnexB(annexB)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !bytes.Equal(got, annexB) {
+		t.Fatalf("3-byte Annex B passthrough mismatch\n got:  %X\n want: %X", got, annexB)
+	}
+}
+
+func TestToAnnexBRejectsEmptyBuffer(t *testing.T) {
+	_, err := ToAnnexB(nil)
+	if err == nil {
+		t.Fatal("expected error for nil input, got nil")
+	}
+
+	_, err = ToAnnexB([]byte{})
+	if err == nil {
+		t.Fatal("expected error for empty input, got nil")
 	}
 }
 

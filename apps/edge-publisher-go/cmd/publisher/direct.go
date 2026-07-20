@@ -15,15 +15,20 @@ import (
 )
 
 type directConfig struct {
-	LivekitURL string
-	APIKey     string
-	APISecret  string
-	Room       string
-	Identity   string
-	Device     string
-	FPS        int
-	Bitrate    int
-	Pipeline   string
+	LivekitURL   string
+	APIKey       string
+	APISecret    string
+	Room         string
+	Identity     string
+	Device       string
+	FPS          int
+	Bitrate      int
+	InputWidth   int
+	InputHeight  int
+	OutputWidth  int
+	OutputHeight int
+	InputFormat  string
+	Pipeline     string
 }
 
 func shouldUseDirectMode() bool {
@@ -66,7 +71,7 @@ func runDirectMode() {
 	logf("GStreamer pipeline started")
 	defer pipe.Stop()
 
-	pub := publisher.New()
+	pub := publisher.New(cfg.FPS)
 	if err := pub.Connect(ctx, cfg.LivekitURL, token, cfg.Identity); err != nil {
 		fatal("connect to Livekit: %v", err)
 	}
@@ -101,17 +106,38 @@ func loadDirectConfig() (directConfig, error) {
 	if err != nil {
 		return directConfig{}, err
 	}
+	inputWidth, err := getenvPositiveInt("INPUT_WIDTH", 1920)
+	if err != nil {
+		return directConfig{}, err
+	}
+	inputHeight, err := getenvPositiveInt("INPUT_HEIGHT", 1536)
+	if err != nil {
+		return directConfig{}, err
+	}
+	outputWidth, err := getenvPositiveInt("OUTPUT_WIDTH", inputWidth)
+	if err != nil {
+		return directConfig{}, err
+	}
+	outputHeight, err := getenvPositiveInt("OUTPUT_HEIGHT", inputHeight)
+	if err != nil {
+		return directConfig{}, err
+	}
 
 	cfg := directConfig{
-		LivekitURL: requiredEnv("LIVEKIT_URL"),
-		APIKey:     requiredEnv("LIVEKIT_API_KEY"),
-		APISecret:  requiredEnv("LIVEKIT_API_SECRET"),
-		Room:       requiredEnv("ROOM"),
-		Identity:   getenvDefault("IDENTITY", "r2-camera"),
-		Device:     getenvDefault("DEVICE", "/dev/video0"),
-		FPS:        fps,
-		Bitrate:    bitrate,
-		Pipeline:   os.Getenv("GSTREAMER_PIPELINE"),
+		LivekitURL:   requiredEnv("LIVEKIT_URL"),
+		APIKey:       requiredEnv("LIVEKIT_API_KEY"),
+		APISecret:    requiredEnv("LIVEKIT_API_SECRET"),
+		Room:         requiredEnv("ROOM"),
+		Identity:     getenvDefault("IDENTITY", "r2-camera"),
+		Device:       getenvDefault("DEVICE", "/dev/video0"),
+		FPS:          fps,
+		Bitrate:      bitrate,
+		InputWidth:   inputWidth,
+		InputHeight:  inputHeight,
+		OutputWidth:  outputWidth,
+		OutputHeight: outputHeight,
+		InputFormat:  getenvDefault("INPUT_FORMAT", "UYVY"),
+		Pipeline:     os.Getenv("GSTREAMER_PIPELINE"),
 	}
 
 	switch {
@@ -148,18 +174,24 @@ func (cfg directConfig) pipelineString() string {
 	}
 
 	return fmt.Sprintf(
-		`v4l2src device=%s !
-		  videorate !
-		  video/x-raw,framerate=%d/1 !
-		  videoconvert !
-		  video/x-raw,format=I420 !
-		  x264enc tune=zerolatency bitrate=%d key-int-max=%d speed-preset=ultrafast bframes=0 !
-		  h264parse config-interval=1 !
+		`nvv4l2camerasrc device=%s !
+		  video/x-raw(memory:NVMM),width=%d,height=%d,format=%s,framerate=%d/1 !
+		  nvvidconv !
+		  video/x-raw(memory:NVMM),width=%d,height=%d,format=NV12 !
+		  nvv4l2h264enc bitrate=%d iframeinterval=%d preset-level=3 insert-sps-pps=true !
+		  h264parse !
 		  video/x-h264,stream-format=avc,alignment=au !
-		  appsink name=sink sync=false drop=true max-buffers=2 emit-signals=true`,
+		  h264parse !
+		  video/x-h264,stream-format=byte-stream,alignment=au !
+		  appsink name=sink sync=false drop=true max-buffers=1 emit-signals=true`,
 		cfg.Device,
+		cfg.InputWidth,
+		cfg.InputHeight,
+		cfg.InputFormat,
 		cfg.FPS,
-		cfg.Bitrate,
+		cfg.OutputWidth,
+		cfg.OutputHeight,
+		cfg.Bitrate*1000,
 		cfg.FPS,
 	)
 }

@@ -1,4 +1,4 @@
-// Package h264 provides AVCC → Annex B bitstream conversion.
+// Package h264 normalizes H.264 access units into Annex B byte-stream form.
 //
 // # AVCC vs Annex B
 //
@@ -16,10 +16,10 @@
 // # SPS/PPS handling (ADR-006 §"SPS/PPS 注入時機")
 //
 // The GStreamer pipeline is configured with insert-sps-pps=true on nvv4l2h264enc.
-// This means SPS and PPS NALUs are already embedded in the AVCC bitstream at
-// every IDR frame boundary.  AVCCToAnnexB therefore does a STRAIGHT pass-through:
+// This means SPS and PPS NALUs are already embedded in the encoder output at
+// every IDR frame boundary. AVCCToAnnexB therefore does a STRAIGHT pass-through:
 // it converts the length-prefix framing to start-code framing for EVERY NALU,
-// including any SPS/PPS NALUs that happen to appear.  It does NOT:
+// including any SPS/PPS NALUs that happen to appear. It does NOT:
 //   - Cache or strip SPS/PPS NALUs
 //   - Inject additional SPS/PPS NALUs
 //   - Reorder NALUs
@@ -42,6 +42,19 @@ var annexBStartCode = [4]byte{0x00, 0x00, 0x00, 0x01}
 // Values 7 = SPS, 8 = PPS, 5 = IDR slice, 1 = non-IDR slice.
 func NALUType(firstByte byte) byte {
 	return firstByte & 0x1F
+}
+
+// ToAnnexB returns a newly allocated Annex B access unit.
+// If the input is already Annex B / byte-stream, it is copied as-is.
+// Otherwise, it is interpreted as AVCC and converted.
+func ToAnnexB(data []byte) ([]byte, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("h264: empty buffer")
+	}
+	if isAnnexB(data) {
+		return append([]byte(nil), data...), nil
+	}
+	return AVCCToAnnexB(data)
 }
 
 // AVCCToAnnexB converts a complete AVCC-format H.264 access unit (AU) to
@@ -95,4 +108,21 @@ func AVCCToAnnexB(avcc []byte) ([]byte, error) {
 	}
 
 	return out, nil
+}
+
+func isAnnexB(data []byte) bool {
+	if len(data) >= 4 &&
+		data[0] == 0x00 &&
+		data[1] == 0x00 &&
+		data[2] == 0x00 &&
+		data[3] == 0x01 {
+		return true
+	}
+	if len(data) >= 3 &&
+		data[0] == 0x00 &&
+		data[1] == 0x00 &&
+		data[2] == 0x01 {
+		return true
+	}
+	return false
 }

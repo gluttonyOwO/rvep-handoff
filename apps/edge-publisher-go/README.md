@@ -75,7 +75,7 @@ RVEP_SOCKET_PATH=/tmp/test-publisher-front.sock \
 {"type":"start","ts":"2026-05-17T00:00:00.000Z","seq":1,"livekitUrl":"ws://192.168.68.68:7880","livekitToken":"<JWT>","roomName":"ugv-vehicle-001","identity":"edge-front","videoProfileId":"zed-x-front-1080p30","pipelineOverride":null}
 ```
 
-### Direct mode (USB camera / no IPC)
+### Direct mode (Jetson V4L2 camera / no IPC)
 
 For quick bring-up with a V4L2 camera, the publisher can also mint its own
 token and connect directly when `RVEP_SOCKET_PATH` / `RVEP_CAMERA_PROFILE` are
@@ -92,19 +92,43 @@ ROOM=ugv-vehicle-001 \
 IDENTITY=r2-camera \
 DEVICE=/dev/video0 \
 FPS=30 \
-BITRATE=1000 \
+BITRATE=4000 \
 go run ./cmd/publisher
 ```
 
-This direct mode uses a default pipeline equivalent to:
+This direct mode now uses Jetson's hardware-accelerated path by default:
 
 ```text
-v4l2src -> videorate -> videoconvert -> x264enc -> h264parse -> appsink
+nvv4l2camerasrc -> nvvidconv -> nvv4l2h264enc -> h264parse -> h264parse -> appsink
 ```
 
-If your camera needs explicit caps or a custom source chain, set
-`GSTREAMER_PIPELINE` to a full pipeline string that ends with
-`appsink name=sink`.
+Default caps match the tested local pipeline:
+
+```text
+device=/dev/video0
+input:  1920x1536 UYVY @ 30fps
+output: 1920x1536 NV12
+```
+
+`BITRATE` remains in **kbps** for direct mode compatibility, and is converted to
+the bps value expected by `nvv4l2h264enc`. You can override the default caps with
+these environment variables:
+
+- `INPUT_WIDTH`, `INPUT_HEIGHT`
+- `OUTPUT_WIDTH`, `OUTPUT_HEIGHT`
+- `INPUT_FORMAT`
+
+The default pipeline keeps the input frame size and only converts to the `NV12`
+pixel format required by `nvv4l2h264enc`. If you need a different encoded size,
+set `OUTPUT_WIDTH` / `OUTPUT_HEIGHT` explicitly.
+
+If your camera needs a custom source chain, set `GSTREAMER_PIPELINE` to a full
+pipeline string that ends with `appsink name=sink`.
+
+The default encoder settings are tuned for low-latency transport:
+`preset-level=3`,
+`insert-sps-pps=true`, a final `byte-stream` parse stage, and
+`appsink max-buffers=1`.
 
 ---
 
