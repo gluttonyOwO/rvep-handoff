@@ -17,6 +17,39 @@ BITRATE=4000 \
 go run ./cmd/publisher
 ```
 
+## Command explanation
+
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `LIVEKIT_URL` | `ws://lk.o3o.tw:7880` | LiveKit server WebSocket URL. |
+| `LIVEKIT_API_KEY` | `devkey` | API key used to mint the publish token. |
+| `LIVEKIT_API_SECRET` | `devsecret` | API secret used to mint the publish token. |
+| `ROOM` | `ugv-vehicle-001` | LiveKit room name to join and publish into. |
+| `IDENTITY` | `r2-camera-test` | Publisher participant identity; must be unique in the room. |
+| `DEVICE` | `/dev/video0` | V4L2 camera device node. |
+| `FPS` | `30` | Capture frame rate; also used as the H.264 keyframe interval and WebRTC sample timing. |
+| `BITRATE` | `4000` | Target encoder bitrate in **kbps**; the direct mode converts it to bps for `nvv4l2h264enc`. |
+
+The last line:
+
+```bash
+go run ./cmd/publisher
+```
+
+builds and starts the Go publisher in direct mode. When the LiveKit variables are
+present, the process skips IPC mode, creates a publish token from
+`LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET`, starts the default Jetson GStreamer
+pipeline, and pushes H.264 frames into the target LiveKit room.
+
+### Optional overrides
+
+| Variable | Purpose |
+| --- | --- |
+| `INPUT_WIDTH`, `INPUT_HEIGHT` | Override the camera input caps. |
+| `OUTPUT_WIDTH`, `OUTPUT_HEIGHT` | Change the encoded output size. By default, output matches input. |
+| `INPUT_FORMAT` | Override the source pixel format; default is `UYVY`. |
+| `GSTREAMER_PIPELINE` | Replace the entire default pipeline with a custom one that ends in `appsink name=sink`. |
+
 ## Default direct-mode pipeline
 
 ```text
